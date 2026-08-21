@@ -1,0 +1,5 @@
+{
+  "name": "코코포리아 로그 편집",
+  "description": "CCFOLIA에서 추출한 TRPG 로그를 가독성 좋게 정리하고 백업하는 도구입니다. 캐릭터별 색상, 이미지 설정 및 탭별 디자인 커스텀이 가능합니다.",
+  "requestFramePermissions": []
+}

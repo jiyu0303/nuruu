@@ -1,0 +1,134 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, "system-ui", "Roboto", sans-serif;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased;
+}
+
+/* Custom scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(150, 150, 150, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(150, 150, 150, 0.5);
+}
+
+/* Boundary Editor Updates */
+.boundary-wrapper {
+  position: relative;
+  width: calc(100% - 80px);
+  height: 20px;
+  margin: -10px auto -10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  opacity: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.boundary-wrapper.is-top-level {
+  position: absolute;
+  top: -12px;
+  left: 0;
+  margin: 0;
+  width: calc(100% - 80px);
+  height: 24px;
+}
+
+.boundary-wrapper:hover,
+.boundary-wrapper:focus-within {
+  opacity: 1;
+}
+
+.boundary-line {
+  position: absolute;
+  left: 20px;
+  right: -60px;
+  height: 2px;
+  background-color: rgba(71, 153, 199, 0.4);
+  border-radius: 999px;
+  pointer-events: none;
+  transition: all 0.2s;
+}
+
+.boundary-wrapper:hover .boundary-line {
+  background-color: rgba(71, 153, 199, 0.8);
+  left: 0;
+  right: -80px;
+}
+
+.boundary-content {
+  position: relative;
+  left: 40px;
+  display: flex;
+  gap: 6px;
+  padding: 0 12px;
+  z-index: 2;
+}
+
+.dark .boundary-wrapper {
+  color: white;
+}
+
+.boundary-wrapper.is-drag-over {
+  opacity: 1 !important;
+  height: 32px !important;
+  margin: -16px auto -16px 0 !important;
+  transition: all 0.15s ease-out;
+}
+
+.boundary-wrapper.is-drag-over .boundary-line {
+  background-color: #4799c7 !important;
+  height: 4px !important;
+  box-shadow: 0 0 14px rgba(71, 153, 199, 0.9);
+  left: 0;
+  right: -80px;
+}
+
+.log-item-wrapper.is-drag-over-top .boundary-wrapper,
+.log-item-wrapper.is-drag-over-bottom .boundary-wrapper {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* 삽화 드래그앤드롭 중일 때 마우스 hover를 무효화하여 삽화 드롭에만 집중 */
+.is-dragging-illustration .boundary-wrapper {
+  display: none !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.is-dragging-illustration .group\/item:hover .absolute.top-2.right-4,
+.is-dragging-illustration .group\/img:hover .absolute,
+.is-dragging-illustration .group\/avatar:hover .absolute {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* 삽화 드래그 중 미리보기 창 내 다른 hover 하이라이트들을 일절 비활성화 */
+.is-dragging-illustration .group\/item:hover {
+  background-color: transparent !important;
+  outline: none !important;
+}
+
