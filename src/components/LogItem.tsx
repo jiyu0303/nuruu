@@ -375,7 +375,22 @@ export const LogItem = React.memo(({
   const format = tabSet?.format || 'main';
   const color = char.color || log.color;
   const otherNameColor = disableOtherColor ? (theme === 'dark' ? '#AAAAAA' : '#777777') : color;
-  const img = log.iconUrl || char.imageUrl;
+  
+  // 🎲 다이스(명령어) 표정 상속 로직 (연속 다이스 굴림 완벽 대응)
+  let img = log.iconUrl; 
+  if (!img && log.isCommand && log.name !== 'system') {
+    // 위로 거슬러 올라가면서 표정을 찾습니다.
+    for (let i = idx - 1; i >= 0; i--) {
+      const prev = mergedLogs[i];
+      // 💡 핵심: 직전 로그가 '다이스(isCommand)'가 아닌 '진짜 대사'일 때까지만 거슬러 올라갑니다!
+      if (prev.charId === log.charId && !prev.isIllustration && !prev.isCommand && prev.name !== 'system') {
+        img = prev.iconUrl; 
+        break;
+      }
+    }
+  }
+  // 찾은 표정이 없거나, 애초에 다이스가 아니었다면 본인의 원래 프사를 씁니다.
+  img = img || char.imageUrl;
   const isSecret = format === 'secret';
   const tabColor = tabSet?.color || '#ffd400';
   const isNarration = log.charId === narrationCharacter && format === 'main';
@@ -796,11 +811,11 @@ export const LogItem = React.memo(({
             style={{
               paddingTop: `${paddingVertical}px`,
               paddingBottom: `${paddingVertical}px`,
-              paddingLeft: `${Math.round(paddingHorizontal)}px`,
+              paddingLeft: `${Math.round(paddingHorizontal) }px`,
               paddingRight: `${Math.round(paddingHorizontal)}px`,
               background: getSecretBg(illTabColor),
               borderLeft: `4px solid ${illTabColor}`,
-              marginLeft: `${Math.round(paddingHorizontal)}px`,
+              marginLeft: `${Math.round(paddingHorizontal) }px`,
               marginRight: `${Math.round(paddingHorizontal)}px`,
               borderRadius: '4px',
               display: 'flex',
@@ -1058,6 +1073,29 @@ export const LogItem = React.memo(({
                 />
               </div>
             </div>
+          ) : format === 'other' ? (
+            (() => {
+              // 잡담 탭의 기본 텍스트 색상
+              let chatColor = theme === 'dark' ? '#AAAAAA' : '#777777';
+              // 🎲 다이스(명령어)라면 결과에 따라 텍스트 색상만 예쁘게 입혀줍니다!
+              if (log.isCommand) {
+                const contentStr = log.content;
+                if (contentStr.includes('대성공')) chatColor = '#ffbf00';
+                else if (contentStr.includes('극단적 성공') || contentStr.includes('대단한 성공')) chatColor = '#fc7300';
+                else if (contentStr.includes('어려운 성공')) chatColor = '#00d617';
+                else if (contentStr.includes('보통 성공')) chatColor = '#009af9';
+                else if (contentStr.includes('＞ 실패')) chatColor = '#ff008f';
+                else if (contentStr.includes('＞ 대실패')) chatColor = '#ff1000';
+              }
+              return (
+                <div key="other" style={{ padding: `2px ${r(paddingHorizontal)}px`, display: 'flex', gap: `${r(gapSize / 1.5)}px`, alignItems: 'baseline', lineHeight: lineHeight, letterSpacing: letterSpacing === 0 ? 'normal' : `${scaledLetterSpacing}px` }}>
+                  <div className="relative inline-block flex-shrink-0" style={{ opacity: log.isContinuation ? 0 : 1, pointerEvents: log.isContinuation ? 'none' : 'auto', userSelect: log.isContinuation ? 'none' : 'auto' }}>
+                    <span style={{ fontWeight: 'bold', color: otherNameColor, fontSize: `${nameSize}px` }} className="cursor-default" dangerouslySetInnerHTML={{ __html: safeHtmlName }} />
+                  </div>
+                  <div style={{ color: chatColor, fontSize: `${scaledTextFontSize}px`, whiteSpace: 'pre-wrap', wordBreak: 'keep-all', overflowWrap: 'break-word' }} dangerouslySetInnerHTML={{ __html: safeHtmlContent }} />
+                </div>
+              );
+            })()
           ) : log.isCommand ? (
             log.name === 'system' ? (
               /* 1. 시스템 메시지 디자인 (나레이션과 동일하게 가운데 정렬 + 볼드 이탤릭) */
@@ -1097,10 +1135,10 @@ export const LogItem = React.memo(({
                 else if (contentStr.includes('보통 성공') ) {
                   commandColor = '#009af9'; 
                 }
-                else if (contentStr.includes('실패') ) {
+                else if (contentStr.includes('＞ 실패') ) {
                   commandColor = '#ff008f'; 
                 }
-                else if (contentStr.includes('대실패') ) {
+                else if (contentStr.includes('＞ 대실패') ) {
                   commandColor = '#ff1000'; 
                 }
 
@@ -1121,8 +1159,8 @@ export const LogItem = React.memo(({
                     borderLeft: 'none', 
               marginTop: isSecret ? (hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px')) : '0',
               marginBottom: isSecret ? (mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px')) : '0',
-              marginLeft: isSecret ? `${r(paddingHorizontal)}px` : '0',
-              marginRight: isSecret ? `${r(paddingHorizontal)}px` : '0',
+              marginLeft:  '0',
+              marginRight: '0',
               borderRadius: '0'
             }}>
                     {hideAllAvatars ? (
@@ -1190,13 +1228,7 @@ export const LogItem = React.memo(({
                 </React.Fragment>
               ))}
             </div>
-          ) : format === 'other' ? (
-            <div key="other" style={{ padding: `2px ${r(paddingHorizontal)}px`, display: 'flex', gap: `${r(gapSize / 1.5)}px`, alignItems: 'baseline', lineHeight: lineHeight, letterSpacing: letterSpacing === 0 ? 'normal' : `${scaledLetterSpacing}px` }}>
-              <div className="relative inline-block flex-shrink-0" style={{ opacity: log.isContinuation ? 0 : 1, pointerEvents: log.isContinuation ? 'none' : 'auto', userSelect: log.isContinuation ? 'none' : 'auto' }}>
-                <span style={{ fontWeight: 'bold', color: otherNameColor, fontSize: `${nameSize}px` }} className="cursor-default" dangerouslySetInnerHTML={{ __html: safeHtmlName }} />
-              </div>
-              <div style={{ color: theme === 'dark' ? '#AAAAAA' : '#777777', fontSize: `${scaledTextFontSize}px`, whiteSpace: 'pre-wrap', wordBreak: 'keep-all', overflowWrap: 'break-word' }} dangerouslySetInnerHTML={{ __html: safeHtmlContent }} />
-            </div>
+        
           ) : format === 'info' ? (
             <div key="info" className={cn(
               log.isContinuation && "pt-1 border-t-0 rounded-t-none",
@@ -1238,8 +1270,8 @@ export const LogItem = React.memo(({
               borderLeft: 'none', 
               marginTop: isSecret ? (hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px')) : '0',
               marginBottom: isSecret ? (mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px')) : '0',
-              marginLeft: isSecret ? `${r(paddingHorizontal)}px` : '0',
-              marginRight: isSecret ? `${r(paddingHorizontal)}px` : '0',
+              marginLeft:  '0',
+              marginRight: '0',
               borderRadius: '0'
             }}>
               {hideAllAvatars ? (

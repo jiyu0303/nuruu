@@ -748,21 +748,29 @@ const [isLocked, setIsLocked] = useState(true);
         if (!fields) return null;
         
         const expressions: { label: string, url: string }[] = [];
+        const mainIconUrl = fields.iconUrl?.stringValue;
         
-        if (fields.iconUrl?.stringValue) {
-          expressions.push({ label: '@기본', url: fields.iconUrl.stringValue });
-        }
-        
+        // 1. 코코포리아에 등록된 '진짜 이름'이 있는 표정들부터 먼저 싹 다 긁어옵니다.
         if (fields.faces?.arrayValue?.values && fields.faces.arrayValue.values.length > 0) {
           fields.faces.arrayValue.values.forEach((face: any) => {
             const faceFields = face.mapValue?.fields;
             if (!faceFields) return;
             const faceUrl = faceFields.url?.stringValue || faceFields.iconUrl?.stringValue;
-            const faceLabel = faceFields.name?.stringValue || faceFields.label?.stringValue || '@표정';
+            let faceLabel = faceFields.name?.stringValue || faceFields.label?.stringValue || '표정';
+            
+            // 통일성을 위해 이름 앞에 @가 없으면 자동으로 붙여줍니다.
+            if (!faceLabel.startsWith('@')) faceLabel = '@' + faceLabel;
+
             if (faceUrl && !expressions.some(e => e.url === faceUrl)) {
               expressions.push({ label: faceLabel, url: faceUrl });
             }
           });
+        }
+        
+        // 2. 메인 아이콘(현재 방에 띄워둔 사진)이 표정 목록에 없는 쌩판 '처음 보는 사진'일 때만!
+        // 그때만 '@기본' 이라는 이름을 붙여서 목록 맨 앞(unshift)에 슬쩍 끼워 넣습니다.
+        if (mainIconUrl && !expressions.some(e => e.url === mainIconUrl)) {
+          expressions.unshift({ label: '@기본', url: mainIconUrl });
         }
 
         const name = fields.name?.stringValue || '';
@@ -1193,10 +1201,26 @@ const [isLocked, setIsLocked] = useState(true);
   }, [charSettings]);
 
   const renameCharacter = (charId: string, newName: string) => {
-    if (!newName) {
+    if (!newName.trim()) {
       setRenamingChar(null);
       return;
     }
+
+    // 1. 캐릭터 목록에서 이름 업데이트
+    const nextCharSettings = { ...charSettings };
+    if (nextCharSettings[charId]) {
+      nextCharSettings[charId] = { ...nextCharSettings[charId], name: newName.trim() };
+    }
+
+    // 2. 채팅 로그에 이미 찍혀있는 예전 이름들도 새 이름으로 싹 다 업데이트!
+    const nextLogs = logs.map(log => 
+      log.charId === charId ? { ...log, name: newName.trim() } : log
+    );
+
+    setCharSettings(nextCharSettings);
+    setLogs(nextLogs);
+    setRenamingChar(null); // 편집 모드 종료
+    saveToHistory({ charSettings: nextCharSettings, logs: nextLogs });
   };
 
   const copyCharacterData = (targetId: string, sourceId: string) => {
