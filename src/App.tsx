@@ -774,7 +774,7 @@ const [isLocked, setIsLocked] = useState(true);
         }
 
         const name = fields.name?.stringValue || '';
-        const imageUrl = expressions.length > 0 ? expressions[0].url : '';
+        const imageUrl = mainIconUrl || (expressions.length > 0 ? expressions[0].url : '');
         return { name, imageUrl, expressions };
       }).filter((c: any) => c && c.name && (c.imageUrl || c.expressions.length > 0));
 
@@ -863,21 +863,18 @@ const [isLocked, setIsLocked] = useState(true);
         const logName = normalizeName(log.name);
         const msgsForName = msgGroupByName[logName] || [];
         
-        // 1순위: '같은 발언자'인 대사 중에서 '완벽하게 똑같은' 텍스트 찾기
+        // 1순위: [같은 발언자] 중에서 텍스트가 "완벽하게 똑같은" 것만 매칭! (가장 안전)
         let matchedMsgIndex = msgsForName.findIndex(m => normalizeText(m.text) === htmlText);
         
-        // 2순위: '같은 발언자'인 대사 중에서 '일부분이 포함된' 텍스트 찾기 (텍스트가 너무 짧으면 엉뚱한 매칭이 되므로 3글자 이상일 때만!)
-        if (matchedMsgIndex === -1 && htmlText.length >= 3) {
+        // 2순위: 텍스트가 완벽히 같지 않더라도, '같은 발언자'이고 문장이 15글자 이상으로 아주 길 때만 부분 일치 허용 (도둑질 방지)
+        if (matchedMsgIndex === -1 && htmlText.length >= 15) {
           matchedMsgIndex = msgsForName.findIndex(m => {
              const msgText = normalizeText(m.text);
-             // 💡 방어막 1: 코코포리아 원본 대사가 3글자 미만("...", "아", "네" 등)이면 남의 긴 대사에 달라붙지 못하게 차단!
-             if (msgText.length < 3) return false; 
-             return msgText.includes(htmlText) || htmlText.includes(msgText);
+             return msgText.length >= 15 && (msgText.includes(htmlText) || htmlText.includes(msgText));
           });
         }
 
         if (matchedMsgIndex !== -1) {
-          // 이름이 같은 그룹 안에서 무사히 찾았을 때
           const matchedMsg = msgsForName[matchedMsgIndex];
           log.iconUrl = matchedMsg.iconUrl; 
           expressionMatchCount++;
@@ -886,25 +883,21 @@ const [isLocked, setIsLocked] = useState(true);
           const globalIdx = messages.findIndex(m => m === matchedMsg);
           if (globalIdx !== -1) messages.splice(globalIdx, 1);
           
-        } else if (htmlText.length >= 5) {
-          // 3순위 (안전장치): 이름표 매칭이 실패했더라도, 텍스트가 충분히 길다면 전체에서 찾습니다.
-          const globalMatchIndex = messages.findIndex(m => {
-            const msgText = normalizeText(m.text);
-            // 💡 방어막 2: 전체 검색 시에도 원본 대사가 5글자 미만이면 차단!
-            if (msgText.length < 5) return false; 
-            return msgText === htmlText || (msgText.includes(htmlText) || htmlText.includes(msgText));
-          });
-
-          if (globalMatchIndex !== -1) {
-            const matchedMsg = messages[globalMatchIndex];
-            log.iconUrl = matchedMsg.iconUrl;
-            expressionMatchCount++;
-            
-            messages.splice(globalMatchIndex, 1);
-            const groupName = normalizeName(matchedMsg.name);
-            if (msgGroupByName[groupName]) {
-              const groupIdx = msgGroupByName[groupName].findIndex(m => m === matchedMsg);
-              if (groupIdx !== -1) msgGroupByName[groupName].splice(groupIdx, 1);
+        } else {
+          // 3순위: 이름이 다르게 파싱되었을 경우를 대비한 전체 검색 (단, 완벽하게 일치 + 5글자 이상일 때만 허용!)
+          if (htmlText.length >= 5) {
+            const globalMatchIndex = messages.findIndex(m => normalizeText(m.text) === htmlText);
+            if (globalMatchIndex !== -1) {
+              const matchedMsg = messages[globalMatchIndex];
+              log.iconUrl = matchedMsg.iconUrl;
+              expressionMatchCount++;
+              
+              messages.splice(globalMatchIndex, 1);
+              const groupName = normalizeName(matchedMsg.name);
+              if (msgGroupByName[groupName]) {
+                const groupIdx = msgGroupByName[groupName].findIndex(m => m === matchedMsg);
+                if (groupIdx !== -1) msgGroupByName[groupName].splice(groupIdx, 1);
+              }
             }
           }
         }

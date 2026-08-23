@@ -926,12 +926,13 @@ export const LogItem = React.memo(({
             #{originalLogIndex + 1}
           </div>
           <button 
-            onClick={() => { 
-              setEditingLogId(log.id); 
-              setEditContent(log.content.replace(/<br\s*\/?>/gi, '\n')); 
-              setEditCharId(log.charId); 
-              setEditIconUrl(log.iconUrl || ''); // 👈 추가!
-            }}
+            onClick={() => { setEditingLogId(log.id); setEditContent(log.content.replace(/<br\s*\/?>/gi, '\n')); setEditCharId(log.charId); }} 
+            className={cn(
+              "p-1 rounded border  backdrop-blur-sm transition-colors",
+              theme === 'dark' 
+                ? "bg-stone-800/80 text-white/60 hover:text-white border-white/10" 
+                : "bg-white/90 text-stone-600 hover:text-stone-900 border-stone-200"
+            )}
             title="수정"
           >
             <Pencil className="w-3 h-3" />
