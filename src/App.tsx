@@ -863,10 +863,34 @@ const [isLocked, setIsLocked] = useState(true);
         const logName = normalizeName(log.name);
         const msgsForName = msgGroupByName[logName] || [];
         
+        // 1순위: '같은 발언자'인 대사 중에서 '완벽하게 똑같은' 텍스트 찾기
         let matchedMsgIndex = msgsForName.findIndex(m => normalizeText(m.text) === htmlText);
         
-        if (matchedMsgIndex === -1 && htmlText.length >= 2) {
-          const globalMatchIndex = messages.findIndex(m => normalizeText(m.text) === htmlText);
+        // 2순위: '같은 발언자'인 대사 중에서 '일부분이 포함된' 텍스트 찾기 (텍스트가 너무 짧으면 엉뚱한 매칭이 되므로 3글자 이상일 때만!)
+        if (matchedMsgIndex === -1 && htmlText.length >= 3) {
+          matchedMsgIndex = msgsForName.findIndex(m => {
+             const msgText = normalizeText(m.text);
+             return msgText.includes(htmlText) || htmlText.includes(msgText);
+          });
+        }
+
+        if (matchedMsgIndex !== -1) {
+          // 이름이 같은 그룹 안에서 무사히 찾았을 때
+          const matchedMsg = msgsForName[matchedMsgIndex];
+          log.iconUrl = matchedMsg.iconUrl; 
+          expressionMatchCount++;
+          
+          msgsForName.splice(matchedMsgIndex, 1);
+          const globalIdx = messages.findIndex(m => m === matchedMsg);
+          if (globalIdx !== -1) messages.splice(globalIdx, 1);
+          
+        } else if (htmlText.length >= 5) {
+          // 3순위 (안전장치): 이름표 매칭이 실패했더라도, 텍스트가 5글자 이상으로 충분히 길고 유니크하다면 전체 로그에서 찾아봅니다.
+          const globalMatchIndex = messages.findIndex(m => {
+            const msgText = normalizeText(m.text);
+            return msgText === htmlText || (msgText.includes(htmlText) || htmlText.includes(msgText));
+          });
+
           if (globalMatchIndex !== -1) {
             const matchedMsg = messages[globalMatchIndex];
             log.iconUrl = matchedMsg.iconUrl;
@@ -878,25 +902,7 @@ const [isLocked, setIsLocked] = useState(true);
               const groupIdx = msgGroupByName[groupName].findIndex(m => m === matchedMsg);
               if (groupIdx !== -1) msgGroupByName[groupName].splice(groupIdx, 1);
             }
-            return;
           }
-        }
-
-        if (matchedMsgIndex === -1 && htmlText.length >= 2) {
-          matchedMsgIndex = msgsForName.findIndex(m => {
-             const msgText = normalizeText(m.text);
-             return msgText.includes(htmlText) || htmlText.includes(msgText);
-          });
-        }
-
-        if (matchedMsgIndex !== -1) {
-          const matchedMsg = msgsForName[matchedMsgIndex];
-          log.iconUrl = matchedMsg.iconUrl; 
-          expressionMatchCount++;
-          
-          msgsForName.splice(matchedMsgIndex, 1);
-          const globalIdx = messages.findIndex(m => m === matchedMsg);
-          if (globalIdx !== -1) messages.splice(globalIdx, 1);
         }
       });
 
