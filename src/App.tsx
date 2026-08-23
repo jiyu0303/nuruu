@@ -870,6 +870,8 @@ const [isLocked, setIsLocked] = useState(true);
         if (matchedMsgIndex === -1 && htmlText.length >= 3) {
           matchedMsgIndex = msgsForName.findIndex(m => {
              const msgText = normalizeText(m.text);
+             // 💡 방어막 1: 코코포리아 원본 대사가 3글자 미만("...", "아", "네" 등)이면 남의 긴 대사에 달라붙지 못하게 차단!
+             if (msgText.length < 3) return false; 
              return msgText.includes(htmlText) || htmlText.includes(msgText);
           });
         }
@@ -885,9 +887,11 @@ const [isLocked, setIsLocked] = useState(true);
           if (globalIdx !== -1) messages.splice(globalIdx, 1);
           
         } else if (htmlText.length >= 5) {
-          // 3순위 (안전장치): 이름표 매칭이 실패했더라도, 텍스트가 5글자 이상으로 충분히 길고 유니크하다면 전체 로그에서 찾아봅니다.
+          // 3순위 (안전장치): 이름표 매칭이 실패했더라도, 텍스트가 충분히 길다면 전체에서 찾습니다.
           const globalMatchIndex = messages.findIndex(m => {
             const msgText = normalizeText(m.text);
+            // 💡 방어막 2: 전체 검색 시에도 원본 대사가 5글자 미만이면 차단!
+            if (msgText.length < 5) return false; 
             return msgText === htmlText || (msgText.includes(htmlText) || htmlText.includes(msgText));
           });
 
