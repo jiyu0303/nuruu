@@ -2404,54 +2404,7 @@ const [isLocked, setIsLocked] = useState(true);
     }
   };
 
-if (isLocked) {
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-[100dvh] bg-[#0f0f0f] text-white font-sans">
-        <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-300">
-          <div className="w-12 h-12 bg-[#5ca5d4] rounded-xl flex items-center justify-center mb-2 shadow-lg shadow-blue-500/20">
-             <span className="text-2xl">🔒</span>
-          </div>
-        
-          <p className="text-xs text-white/50 mb-2">비공개 사이트입니다.</p>
-          
-          <div className="flex gap-2 w-full">
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing) return;
-                if (e.key === 'Enter') {
-                  if (passwordInput === '@jjangmilk__') { 
-                    setIsLocked(false);
-                  } else {
-                    alert('비밀번호가 틀렸습니다.');
-                    setPasswordInput('');
-                  }
-                }
-              }}
-              className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-[#5ca5d4] text-sm text-white placeholder:text-white/30 transition-colors"
-              placeholder="비밀번호 입력"
-              autoFocus
-            />
-            <button
-              onClick={() => {
-                if (passwordInput === '@jjangmilk__') {
-                  setIsLocked(false);
-                } else {
-                  alert('비밀번호가 틀렸습니다.');
-                  setPasswordInput('');
-                }
-              }}
-              className="bg-[#5ca5d4] hover:bg-[#499bc8] text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shrink-0"
-            >
-              입장
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <SettingsProvider settings={{
