@@ -114,7 +114,15 @@ export const generateFinalHtmlStr = (
 
   const getSecretBg = (tabColor?: string) => {
     if (!tabColor) return isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
-    return isDark ? `${tabColor}30` : `${tabColor}20`;
+    try {
+      // 💡 파일 최상단에 있는 변환기를 사용해 정확한 rgba(%) 값으로 바꿔줍니다!
+      const { r, g, b } = hexToRgbValues(tabColor);
+      // 다크모드 15%(0.15), 화이트모드 10%(0.10) (미리보기 화면과 완벽하게 동일한 비율)
+      return isDark ? `rgba(${r}, ${g}, ${b}, 0.15)` : `rgba(${r}, ${g}, ${b}, 0.10)`;
+    } catch (e) {
+      // 만약 색상 코드 형태가 특이해서 에러가 날 경우를 대비한 정확한 16진수 값 (26=15%, 1a=10%)
+      return isDark ? `${tabColor}26` : `${tabColor}1a`;
+    }
   };
 
   const fontData = fonts.find(f => f.name === fontFamily);
