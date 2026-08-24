@@ -114,7 +114,7 @@ export const generateFinalHtmlStr = (
 
   const getSecretBg = (tabColor?: string) => {
     if (!tabColor) return isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
-    return isDark ? `${tabColor}15` : `${tabColor}10`;
+    return isDark ? `${tabColor}30` : `${tabColor}20`;
   };
 
   const fontData = fonts.find(f => f.name === fontFamily);
