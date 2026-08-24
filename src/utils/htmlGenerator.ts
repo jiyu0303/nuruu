@@ -805,7 +805,26 @@ export const generateFinalHtmlStr = (
     const char = charSettings[log.charId];
     const color = char?.color || log.color;
     const otherNameColor = disableOtherColor ? otherTextColor : color;
-    const img = log.iconUrl || char?.imageUrl;
+    
+    // 💡 다이스 로그 등에서 현재 표정(iconUrl)이 비어있다면, 거슬러 올라가 가장 마지막 표정을 찾습니다!
+    let recentIconUrl = log.iconUrl;
+    if (!recentIconUrl) {
+      for (let i = chunkIdx - 1; i >= 0; i--) {
+        const pLogs = chunks[i].logs;
+        let found = false;
+        for (let j = pLogs.length - 1; j >= 0; j--) {
+          // 같은 캐릭터가 말했던 로그 중 표정 이미지가 있는 것을 발견하면 그것으로 덮어씌움
+          if (pLogs[j].charId === log.charId && pLogs[j].iconUrl) {
+            recentIconUrl = pLogs[j].iconUrl;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+    }
+    const img = recentIconUrl || char?.imageUrl;
+    
     const hideAvatar = hideEmptyAvatars;
 
     const prevChunk = chunkIdx > 0 ? chunks[chunkIdx - 1] : null;
@@ -1125,18 +1144,26 @@ export const generateFinalHtmlStr = (
         const isExcluded = excluded.includes(img);
         
         if (crop && !isExcluded) {
-          // 크롭 영역이 지정되어 있을 때 (좌표 계산 정상화)
-          const sX = 100 / crop.width;
-          const sY = 100 / crop.height;
-          customImgStyle = `width: ${sX * 100}%; height: ${sY * 100}%; object-fit: cover; transform: translate(-${crop.x}%, -${crop.y}%); transform-origin: top left;`;
+          // 크롭 좌표 수학 계산 (이제 두 번 곱해져서 튕겨 나가는 일이 없습니다!)
+          const wPct = (100 / crop.width) * 100;
+          const hPct = (100 / crop.height) * 100;
+          const lPct = (crop.x / crop.width) * 100;
+          const tPct = (crop.y / crop.height) * 100;
+          
+          // 어떤 스킨이든 무시할 수 없도록 position: absolute와 top/left !important 철갑을 두릅니다.
+          customImgStyle = `position: absolute !important; left: -${lPct}% !important; top: -${tPct}% !important; width: ${wPct}% !important; height: ${hPct}% !important; max-width: none !important; max-height: none !important; object-fit: fill !important; display: block !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; border: none !important;`;
         } else {
-          // 크롭이 안 된 기본 상태
-          customImgStyle = `width: 100%; height: 100%; object-fit: cover; object-position: center top;`;
+          // 크롭 안 된 기본 이미지
+          customImgStyle = `position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; object-fit: cover !important; object-position: center top !important; display: block !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; border: none !important;`;
         }
-      
       }
 
-      // 💡 2. 다이스 박스를 아예 없애고, 일반 대사처럼 텍스트 색상만 입히도록 공통 처리! (시스템 제외)
+      // 💡 2. 프사(아바타) 껍데기 박스에 position: relative 부여 및 강제 정사각형 고정
+      const bgStyle = hideAvatar ? 'background-color: transparent !important;' : `background-color: ${avatarPlaceholder} !important;`;
+      const solidAwStyle = `position: relative !important; width:${avatarSize}px !important; height:${avatarSize}px !important; min-width:${avatarSize}px !important; min-height:${avatarSize}px !important; max-width:${avatarSize}px !important; max-height:${avatarSize}px !important; flex-shrink:0 !important; border-radius:4px !important; overflow:hidden !important; display:block !important; box-sizing:border-box !important; margin:0 !important; padding:0 !important; ${bgStyle}`;
+
+      // 💡 3. 다이스 박스를 아예 없애고, 일반 대사처럼 텍스트 색상만 입히도록 공통 처리
+      let diceColorHtml = finalHtmlContent;
       if (log.isCommand && log.name !== 'system') {
         let chatColor = isDark ? 'inherit' : '#333333';
         const contentStr = log.content;
@@ -1147,12 +1174,11 @@ export const generateFinalHtmlStr = (
         else if (contentStr.includes('＞ 실패')) chatColor = '#ff008f';
         else if (contentStr.includes('＞ 대실패')) chatColor = '#ff1000';
         
-        finalHtmlContent = `<span style="color: ${chatColor}; font-weight: bold;">${finalHtmlContent}</span>`;
+        diceColorHtml = `<span style="color: ${chatColor}; font-weight: bold;">${finalHtmlContent}</span>`;
       }
 
       if (isInline) {
         const charClass = shortenId(log.charId);
-        const awStyle = `width:${avatarSize}px;height:${avatarSize}px;flex-shrink:0;background-color:${hideAvatar ? 'transparent' : avatarPlaceholder};border-radius:4px;overflow:hidden;`;
         const bodyStyle = `flex:1;`;
         const nameStyle = `font-size:0.96em;margin-bottom:${Math.max(4, Math.ceil(textFontSize * (lineHeight >= 1.4 ? 0.3 : 0.5)))}px;display:block;`;
         const contentStyle = `white-space:pre-wrap;word-break:break-all;`;
@@ -1166,9 +1192,11 @@ export const generateFinalHtmlStr = (
         let itemMarginTop = '0';
         let itemMarginBottom = '0';
 
-        // 다이스도 일반 대사 여백을 따르도록 조건 변경
-        if ((log.isCommand && log.name === 'system') || format === 'secret') {
+        if (log.isCommand && log.name === 'system') {
           itemMarginBottom = mergeWithNext ? '0' : `${effectiveBlockSpacing}px`;
+        } else if (format === 'secret') {
+          itemMarginTop = '0';
+          itemMarginBottom = '0';
         } else if (isNarration) {
           itemMarginTop = isPrevNarration && !hasBlockBefore ? '0' : `${Math.floor(narrationMargin / 2)}px`;
           itemMarginBottom = isNextNarration && !hasBlockAfter ? '0' : `${Math.ceil(narrationMargin / 2)}px`;
@@ -1198,18 +1226,13 @@ export const generateFinalHtmlStr = (
             return `${prefix}<div style="white-space:pre-wrap;word-break:break-all;"><b><i>${piece}</i></b></div>`;
           }).join('');
           html += `</div>`;
-          if (blocksAfterHtml) {
-            html += blocksAfterHtml;
-          }
-          if (hasDividerBelow) {
-            html += dividerHtml;
-          }
+          if (blocksAfterHtml) html += blocksAfterHtml;
+          if (hasDividerBelow) html += dividerHtml;
           html += `</div>`;
         } else {
           html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
           
           if (log.isCommand && log.name === 'system') {
-            // 시스템 메시지 중앙 정렬 + 이탤릭 유지
             const narrStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;text-align:center;font-style:italic;font-weight:bold;color:${textColor};`;
             html += `<div style="${cleanStyle(narrStyle)}">`;
             const flatPieces = finalHtmlContentPieces.flat();
@@ -1222,7 +1245,7 @@ export const generateFinalHtmlStr = (
             const rowStyle = `padding:${s(2)}px ${paddingHorizontal}px;display:flex;gap:${gapSize / 1.5}px;align-items:baseline;`;
             html += `<div style="${cleanStyle(rowStyle)}">
               <b><span style="${cleanStyle(`flex-shrink:0;font-size:0.96em;color:${otherNameColor}`)}">${log.name}</span></b>
-              <div style="${cleanStyle(otherContentStyle)}">${finalHtmlContent}</div>
+              <div style="${cleanStyle(otherContentStyle)}">${diceColorHtml}</div>
             </div>`;
           } else if (format === 'info') {
             const infoMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
@@ -1231,21 +1254,20 @@ export const generateFinalHtmlStr = (
             const infoBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
             const infoBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
             
-            // 💡 인라인 방식 정보 탭: 모서리 강제 0
-            const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:7px solid ${borderColor};margin:${infoMargin};border-radius:0;${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
+            const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:4px solid ${borderColor};margin:${infoMargin};border-radius:0;${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
             html += `<div style="${cleanStyle(wrapperStyle)}">
               <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-              <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+              <div style="${cleanStyle(contentStyle)}">${diceColorHtml}</div>
             </div>`;
           } else if (format === 'secret') {
             const tabColor = tabSet?.color || '#ffd400';
             const secretBg = getSecretBg(tabColor);
-            const imgTag = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
-            
-            // 💡 비밀 탭 내부 여백 및 테두리 완벽 제거 (항상 0으로 밀착!)
-            const secretMargin = `0`;
-            const secretBorderTop = 'none';
-            const secretBorderBottom = 'none';
+            const imgTag = `<div style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            const secretMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
+            const secretMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
+            const secretMargin = `${secretMarginTop} 0 ${secretMarginBottomVal} 0`;
+            const secretBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
+            const secretBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
    
             const borderTopStyle = secretBorderTop ? `border-top:${secretBorderTop};` : '';
             const borderBottomStyle = secretBorderBottom ? `border-bottom:${secretBorderBottom};` : '';
@@ -1256,29 +1278,23 @@ export const generateFinalHtmlStr = (
                 ${imgTag}
                 <div style="${cleanStyle(bodyStyle)}">
                   <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-                  <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+                  <div style="${cleanStyle(contentStyle)}">${diceColorHtml}</div>
                 </div>
               </div>`;
           } else {
-            // 이제 일반 탭을 쓰는 주사위 다이스 로그도 아바타가 있는 이 구문을 타게 됩니다!
-            const avatarHtml = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
-            
+            const avatarHtml = `<div style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
             const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;`;
             html += `
               <div style="${cleanStyle(wrapperStyle)}">
                 ${avatarHtml}
                 <div style="${cleanStyle(bodyStyle)}">
                   <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-                  <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+                  <div style="${cleanStyle(contentStyle)}">${diceColorHtml}</div>
                 </div>
               </div>`;
           }
-          if (blocksAfterHtml) {
-            html += blocksAfterHtml;
-          }
-          if (hasDividerBelow) {
-            html += dividerHtml;
-          }
+          if (blocksAfterHtml) html += blocksAfterHtml;
+          if (hasDividerBelow) html += dividerHtml;
           html += `</div>`;
         }
       } else {
@@ -1288,8 +1304,11 @@ export const generateFinalHtmlStr = (
         let mb = '';
         let mt = '';
 
-        if ((log.isCommand && log.name === 'system') || format === 'secret') {
+        if (log.isCommand && log.name === 'system') {
           mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-c';
+        } else if (format === 'secret') {
+          mb = '';
+          mt = '';
         } else if (isNarration) {
           mt = isPrevNarration ? 'c-mt0' : 'c-mt-nr';
           mb = isNextNarration ? 'c-mb0' : 'c-mb-nr';
@@ -1322,11 +1341,10 @@ export const generateFinalHtmlStr = (
           }).join('');
           html += `</div>`;
         } else if (format === 'other') {
-          html += `<div class="o-r" style="padding-top: ${s(2)}px; padding-bottom: ${s(2)}px;"><span class="o-nm" style="color: ${otherNameColor}">${log.name}</span><div class="o-c">${finalHtmlContent}</div></div>`;
+          html += `<div class="o-r" style="padding-top: ${s(2)}px; padding-bottom: ${s(2)}px;"><span class="o-nm" style="color: ${otherNameColor}">${log.name}</span><div class="o-c">${diceColorHtml}</div></div>`;
         } else if (format === 'info') {
           const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
           
-          // 💡 내부 스타일 방식 정보 탭: 모서리 강제 0
           const st = [
             shouldMergeStyle ? `margin: 0 ${paddingHorizontal}px;` : '',
             `border-radius: 0;`,
@@ -1334,35 +1352,39 @@ export const generateFinalHtmlStr = (
             shouldMergeStyle && bZ ? 'border-bottom: none;' : ''
           ].filter(Boolean).join(' ');
 
-          html += `<div class="i-r"${st ? ` style="${st}"` : ''}><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div>`;
+          html += `<div class="i-r"${st ? ` style="${st}"` : ''}><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${diceColorHtml}</div></div>`;
         } else if (format === 'secret') {
           const tabColor = tabSet?.color || '#ffd400';
           const secretBg = getSecretBg(tabColor);
           const avSt = hideAvatar ? 'background-color: transparent;' : '';
           
-          // 💡 비밀 탭 내부 여백 및 테두리 완벽 제거 (항상 0으로 밀착!)
+          const mergeWithPrev = shouldMergeStyle && isPrevSameTab && !isSectionStart;
+          const mergeWithNext = shouldMergeStyle && isNextSameTab && !isSectionEnd;
+          
+          const secretMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
+          const secretMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
+          
           const st = [
             `background: ${secretBg};`,
             `border-left: none;`,
-            `margin: 0;`,
+            `margin: ${secretMarginTop} 0 ${secretMarginBottomVal} 0;`,
             `border-radius: 0;`,
-            `border-top: none;`,
-            `border-bottom: none;`
+            mergeWithPrev ? 'border-top: none;' : '',
+            mergeWithNext ? 'border-bottom: none;' : ''
           ].filter(Boolean).join(' ');
 
           if (hideAllAvatars) {
-            html += `<div class="s-r no-avatar-grid" style="${st}"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
+            html += `<div class="s-r no-avatar-grid" style="${st}"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${diceColorHtml}</div></div></div>`;
           } else {
-            const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
-            html += `<div class="s-r" style="${st}">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
+            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            html += `<div class="s-r" style="${st}">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${diceColorHtml}</div></div></div>`;
           }
         } else {
-          const avSt = hideAvatar ? 'background-color: transparent;' : '';
           if (hideAllAvatars) {
-            html += `<div class="m-r no-avatar-grid"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
+            html += `<div class="m-r no-avatar-grid"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${diceColorHtml}</div></div></div>`;
           } else {
-            const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
-            html += `<div class="m-r">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
+            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            html += `<div class="m-r">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${diceColorHtml}</div></div></div>`;
           }
         }
         if (blocksAfterHtml) {
