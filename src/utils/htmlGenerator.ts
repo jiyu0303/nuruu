@@ -1171,10 +1171,10 @@ export const generateFinalHtmlStr = (
           const marginLeft = log.name !== 'system' ? 'margin-left:8px;' : '';
           const cmdMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : `${s(8)}px`;
           if (format === 'secret') {
-            const tabColor = tabSet?.color || '#ffd400';
-            const secretBg = getSecretBg(tabColor);
-            html += `<div style="${cleanStyle(`display:flex;align-items:center;flex-wrap:wrap;background:${secretBg};border:1px solid ${borderColor};padding:${paddingVertical}px ${paddingHorizontal}px;border-radius:8px;margin:${cmdMarginTop} ${paddingHorizontal}px ${s(8)}px ${paddingHorizontal}px`)}">${nameHtml}<b><span style="${cleanStyle(`color:${textColor};font-family:'NanumGothicCodingLigature',monospace;${marginLeft}`)}">${finalHtmlContent}</span></b></div>`;
-          } else {
+          const tabColor = tabSet?.color || '#ffd400';
+          const secretBg = getSecretBg(tabColor);
+          html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
+        } else {
             html += `<div style="${cleanStyle(`display:flex;align-items:center;flex-wrap:wrap;background:${commandBg};border:1px solid ${borderColor};padding:${paddingVertical}px ${paddingHorizontal}px;border-radius:8px;margin:${cmdMarginTop} ${paddingHorizontal}px ${s(8)}px ${paddingHorizontal}px`)}">${nameHtml}<b><span style="${cleanStyle(`color:${textColor};font-family:'NanumGothicCodingLigature',monospace;${marginLeft}`)}">${finalHtmlContent}</span></b></div>`;
           }
         } else if (format === 'other') {
@@ -1304,12 +1304,14 @@ export const generateFinalHtmlStr = (
         const secretBg = getSecretBg(tabColor);
         const avSt = hideAvatar ? 'background-color: transparent;' : '';
         const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
+        // rad 변수는 이제 안 쓰지만 에러 방지용으로 둡니다.
         const rad = shouldMergeStyle ? `${tZ ? 0 : 4}px ${tZ ? 0 : 4}px ${bZ ? 0 : 4}px ${bZ ? 0 : 4}px` : '4px';
+        
         const st = [
           `background: ${secretBg};`,
-          `border-left: 4px solid ${tabColor};`,
-          shouldMergeStyle ? `margin: 0 ${paddingHorizontal}px;` : '',
-          rad !== '4px' ? `border-radius: ${rad};` : '',
+          `border-left: none;`,                 // 👈 선 지우기
+          `margin-left: 0; margin-right: 0;`,   // 👈 좌우 여백 0
+          `border-radius: 0;`,                  // 👈 둥근 모서리 없애기 (직각)
           shouldMergeStyle && tZ ? 'border-top: none;' : ''
         ].filter(Boolean).join(' ');
 
