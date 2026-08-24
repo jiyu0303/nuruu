@@ -845,75 +845,13 @@ const [isLocked, setIsLocked] = useState(true);
       const nextLogs = [...logs];
       
       // 🚨 텍스트의 HTML 태그, 공백, 줄바꿈을 전부 없애고 순수 글자만 남기는 함수
-      const basicNormalizeText = (text: string) => text.replace(/<[^>]*>?/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/\s+/g, '').trim();
-      
-      // 💡 [새로 추가된 핵심!] 기호, 마침표, 말줄임표 등을 전부 날리고 순수 문자와 숫자만 남깁니다.
-      const strictNormalizeText = (text: string) => basicNormalizeText(text).replace(/[^\p{L}\p{N}]/gu, '');
+      const normalizeText = (text: string) => text.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, '').trim();
       
       const msgGroupByName: Record<string, any[]> = {};
       messages.forEach(m => {
         const n = normalizeName(m.name);
         if (!msgGroupByName[n]) msgGroupByName[n] = [];
         msgGroupByName[n].push(m);
-      });
-
-      nextLogs.forEach((log: any) => {
-        if (log.isIllustration || log.isCommand) return; 
-        
-        const rawHtmlText = basicNormalizeText(log.content);
-        const strictHtmlText = strictNormalizeText(log.content);
-        if (!rawHtmlText) return; 
-
-        const logName = normalizeName(log.name);
-        const msgsForName = msgGroupByName[logName] || [];
-        
-        let matchedMsgIndex = -1;
-
-        // 1순위: [같은 캐릭터] 대사 중 기호/공백 포함 완벽 일치
-        matchedMsgIndex = msgsForName.findIndex(m => basicNormalizeText(m.text) === rawHtmlText);
-        
-        // 💡 2순위 (특효약!): 마침표(.), 말줄임표(…), 따옴표 등 특수문자 때문에 매칭이 깨지는 것을 방지!
-        // 특수문자를 싹 지운 순수 '글자+숫자'만 비교해서 완벽히 일치하는지 찾아냅니다. (예: "...... 죽었어." -> "죽었어")
-        if (matchedMsgIndex === -1 && strictHtmlText.length > 0) {
-          matchedMsgIndex = msgsForName.findIndex(m => strictNormalizeText(m.text) === strictHtmlText);
-        }
-
-        // 3순위: 그래도 없다면 부분 일치 (3글자 이상)
-        if (matchedMsgIndex === -1 && rawHtmlText.length >= 3) {
-          matchedMsgIndex = msgsForName.findIndex(m => {
-             const msgText = basicNormalizeText(m.text);
-             return msgText.length >= 3 && (msgText.includes(rawHtmlText) || rawHtmlText.includes(msgText));
-          });
-        }
-
-        if (matchedMsgIndex !== -1) {
-          const matchedMsg = msgsForName[matchedMsgIndex];
-          log.iconUrl = matchedMsg.iconUrl; 
-          expressionMatchCount++;
-          
-          msgsForName.splice(matchedMsgIndex, 1);
-          const globalIdx = messages.findIndex(m => m === matchedMsg);
-          if (globalIdx !== -1) messages.splice(globalIdx, 1);
-          
-        } else {
-          // 4순위: 전체 검색 (이름이 다르게 파싱된 경우)
-          if (strictHtmlText.length >= 5) {
-            const globalMatchIndex = messages.findIndex(m => strictNormalizeText(m.text) === strictHtmlText);
-            
-            if (globalMatchIndex !== -1) {
-              const matchedMsg = messages[globalMatchIndex];
-              log.iconUrl = matchedMsg.iconUrl;
-              expressionMatchCount++;
-              
-              messages.splice(globalMatchIndex, 1);
-              const groupName = normalizeName(matchedMsg.name);
-              if (msgGroupByName[groupName]) {
-                const groupIdx = msgGroupByName[groupName].findIndex(m => m === matchedMsg);
-                if (groupIdx !== -1) msgGroupByName[groupName].splice(groupIdx, 1);
-              }
-            }
-          }
-        }
       });
 
       nextLogs.forEach((log: any) => {
