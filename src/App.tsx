@@ -863,40 +863,30 @@ const [isLocked, setIsLocked] = useState(true);
         const logName = normalizeName(log.name);
         const msgsForName = msgGroupByName[logName] || [];
         
-        let matchedMsgIndex = -1;
-
-        // 1순위: [같은 캐릭터] 대사 중 완벽하게 일치하는 것 찾기
-        matchedMsgIndex = msgsForName.findIndex(m => normalizeText(m.text) === htmlText);
+        // 1순위: [같은 발언자] 중에서 텍스트가 "완벽하게 똑같은" 것만 매칭! (가장 안전)
+        let matchedMsgIndex = msgsForName.findIndex(m => normalizeText(m.text) === htmlText);
         
-        // 2순위: 완벽 일치가 없다면? (HTML 파싱 중 공백이나 기호가 살짝 달라진 경우)
-        // 💡너무 엄격했던 15글자 제한을 풀고, '3글자 이상'이면 포함 여부로 유연하게 찾아줍니다! (이제 튕겨나가지 않아요)
-        if (matchedMsgIndex === -1 && htmlText.length >= 3) {
+        // 2순위: 텍스트가 완벽히 같지 않더라도, '같은 발언자'이고 문장이 15글자 이상으로 아주 길 때만 부분 일치 허용 (도둑질 방지)
+        if (matchedMsgIndex === -1 && htmlText.length >= 15) {
           matchedMsgIndex = msgsForName.findIndex(m => {
              const msgText = normalizeText(m.text);
-             return msgText.length >= 3 && (msgText.includes(htmlText) || htmlText.includes(msgText));
+             return msgText.length >= 15 && (msgText.includes(htmlText) || htmlText.includes(msgText));
           });
         }
 
         if (matchedMsgIndex !== -1) {
-          // 무사히 자기 대사를 찾았음! 표정 씌우기
           const matchedMsg = msgsForName[matchedMsgIndex];
           log.iconUrl = matchedMsg.iconUrl; 
           expressionMatchCount++;
           
-          // 이미 매칭된 대사는 지워서 중복 매칭 방지
           msgsForName.splice(matchedMsgIndex, 1);
           const globalIdx = messages.findIndex(m => m === matchedMsg);
           if (globalIdx !== -1) messages.splice(globalIdx, 1);
           
         } else {
-          // 3순위: 이름이 달라서 못 찾은 경우 (전체 검색)
-          // 💡여기서는 남의 대사를 훔쳐오면 안 되므로 8글자 이상의 '긴 문장'일 때만 허용합니다. (안전장치)
-          if (htmlText.length >= 8) {
-            const globalMatchIndex = messages.findIndex(m => {
-                const msgText = normalizeText(m.text);
-                return msgText === htmlText || (msgText.length >= 8 && (msgText.includes(htmlText) || htmlText.includes(msgText)));
-            });
-            
+          // 3순위: 이름이 다르게 파싱되었을 경우를 대비한 전체 검색 (단, 완벽하게 일치 + 5글자 이상일 때만 허용!)
+          if (htmlText.length >= 5) {
+            const globalMatchIndex = messages.findIndex(m => normalizeText(m.text) === htmlText);
             if (globalMatchIndex !== -1) {
               const matchedMsg = messages[globalMatchIndex];
               log.iconUrl = matchedMsg.iconUrl;
