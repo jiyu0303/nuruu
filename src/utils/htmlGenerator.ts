@@ -1109,132 +1109,247 @@ export const generateFinalHtmlStr = (
       }
     }
 
-    if (isInline) {
-      const charClass = shortenId(log.charId);
-      const awStyle = `width:${avatarSize}px;height:${avatarSize}px;flex-shrink:0;background-color:${hideAvatar ? 'transparent' : avatarPlaceholder};border-radius:4px;overflow:hidden;`;
-      const aImgStyle = `width:100%;height:100%;object-fit:cover;object-position:center top;transform:scale(1.2);`;
-      const bodyStyle = `flex:1;`;
-      const nameStyle = `font-size:0.96em;margin-bottom:${Math.max(4, Math.ceil(textFontSize * (lineHeight >= 1.4 ? 0.3 : 0.5)))}px;display:block;`;
-      const contentStyle = `white-space:pre-wrap;word-break:break-all;`;
-      const otherContentStyle = `color:${otherTextColor};white-space:pre-wrap;word-break:break-all;`;
-      
-      const isSectionStart = chunkIdx === 0 || hasBlockBefore;
-      const mergeWithPrev = shouldMergeStyle && isPrevSameTab && !isSectionStart;
-      const isSectionEnd = isNextSameTab === false || hasBlockAfter;
-      const mergeWithNext = shouldMergeStyle && isNextSameTab && !isSectionEnd;
-
-      let itemMarginTop = '0';
-      let itemMarginBottom = '0';
-
-      if (log.isCommand || format === 'secret') {
-        itemMarginBottom = mergeWithNext ? '0' : `${effectiveBlockSpacing}px`;
-      } else if (isNarration) {
-        itemMarginTop = isPrevNarration && !hasBlockBefore ? '0' : `${Math.floor(narrationMargin / 2)}px`;
-        itemMarginBottom = isNextNarration && !hasBlockAfter ? '0' : `${Math.ceil(narrationMargin / 2)}px`;
-      } else {
-        itemMarginTop = mergeWithPrev ? '0' : `${Math.floor(effectiveBlockSpacing / 2)}px`;
-        itemMarginBottom = mergeWithNext ? '0' : `${Math.ceil(effectiveBlockSpacing / 2)}px`;
-      }
-
-      if (format === 'other') {
-        itemMarginBottom = '0';
-        itemMarginTop = '0';
-      }
-
-      if (hasSpecialDividerAboveAndNoBadge) {
-        itemMarginTop = '0';
-      }
-
-      const fullFilterAttrs = getFilterAttrs(log);
+    let customImgStyle = '';
+      if (img) {
+        const charData = charSettings[log.charId];
+        const crop = charData?.cropData;
+        const excluded = charData?.excludedCropUrls || [];
+        const isExcluded = excluded.includes(img);
         
-      if (isNarration) {
-        const narrStyle = `padding:${isPrevNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px ${isNextNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px;text-align:center;`;
-        html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
-        html += `<div style="${cleanStyle(narrStyle)}">`;
-        const flatPieces = finalHtmlContentPieces.flat();
-        html += flatPieces.map((piece, pIdx) => {
-          const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
-          return `${prefix}<div style="white-space:pre-wrap;word-break:break-all;"><b><i>${piece}</i></b></div>`;
-        }).join('');
-        html += `</div>`;
-        if (blocksAfterHtml) {
-          html += blocksAfterHtml;
-        }
-        if (hasDividerBelow) {
-          html += dividerHtml;
-        }
-        html += `</div>`;
-      } else {
-        html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
-        if (log.isCommand) {
-          const nameHtml = log.name !== 'system' ? `<b class="c-tx ${charClass}">[ ${log.name} ]</b>` : '';
-          const marginLeft = log.name !== 'system' ? 'margin-left:8px;' : '';
-          const cmdMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : `${s(8)}px`;
-          if (format === 'secret') {
-          const tabColor = tabSet?.color || '#ffd400';
-          const secretBg = getSecretBg(tabColor);
-          html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
+        if (crop && !isExcluded) {
+          // 크롭 영역이 지정되어 있을 때 (퍼센트 비율 계산)
+          const sX = 100 / crop.width;
+          const sY = 100 / crop.height;
+          customImgStyle = `width: ${sX * 100}%; height: ${sY * 100}%; object-fit: cover; transform: translate(-${crop.x * sX}%, -${crop.y * sY}%); transform-origin: top left;`;
         } else {
-            html += `<div style="${cleanStyle(`display:flex;align-items:center;flex-wrap:wrap;background:${commandBg};border:1px solid ${borderColor};padding:${paddingVertical}px ${paddingHorizontal}px;border-radius:8px;margin:${cmdMarginTop} ${paddingHorizontal}px ${s(8)}px ${paddingHorizontal}px`)}">${nameHtml}<b><span style="${cleanStyle(`color:${textColor};font-family:'NanumGothicCodingLigature',monospace;${marginLeft}`)}">${finalHtmlContent}</span></b></div>`;
+          // 크롭이 안 된 기본 상태 (꽉 차게 위쪽 정렬)
+          customImgStyle = `width: 100%; height: 100%; object-fit: cover; object-position: center top;`;
+        }
+      }
+
+      if (isInline) {
+        const charClass = shortenId(log.charId);
+        const awStyle = `width:${avatarSize}px;height:${avatarSize}px;flex-shrink:0;background-color:${hideAvatar ? 'transparent' : avatarPlaceholder};border-radius:4px;overflow:hidden;`;
+        const bodyStyle = `flex:1;`;
+        const nameStyle = `font-size:0.96em;margin-bottom:${Math.max(4, Math.ceil(textFontSize * (lineHeight >= 1.4 ? 0.3 : 0.5)))}px;display:block;`;
+        const contentStyle = `white-space:pre-wrap;word-break:break-all;`;
+        const otherContentStyle = `color:${otherTextColor};white-space:pre-wrap;word-break:break-all;`;
+        
+        const isSectionStart = chunkIdx === 0 || hasBlockBefore;
+        const mergeWithPrev = shouldMergeStyle && isPrevSameTab && !isSectionStart;
+        const isSectionEnd = isNextSameTab === false || hasBlockAfter;
+        const mergeWithNext = shouldMergeStyle && isNextSameTab && !isSectionEnd;
+
+        let itemMarginTop = '0';
+        let itemMarginBottom = '0';
+
+        if (log.isCommand || format === 'secret') {
+          itemMarginBottom = mergeWithNext ? '0' : `${effectiveBlockSpacing}px`;
+        } else if (isNarration) {
+          itemMarginTop = isPrevNarration && !hasBlockBefore ? '0' : `${Math.floor(narrationMargin / 2)}px`;
+          itemMarginBottom = isNextNarration && !hasBlockAfter ? '0' : `${Math.ceil(narrationMargin / 2)}px`;
+        } else {
+          itemMarginTop = mergeWithPrev ? '0' : `${Math.floor(effectiveBlockSpacing / 2)}px`;
+          itemMarginBottom = mergeWithNext ? '0' : `${Math.ceil(effectiveBlockSpacing / 2)}px`;
+        }
+
+        if (format === 'other') {
+          itemMarginBottom = '0';
+          itemMarginTop = '0';
+        }
+
+        if (hasSpecialDividerAboveAndNoBadge) {
+          itemMarginTop = '0';
+        }
+
+        const fullFilterAttrs = getFilterAttrs(log);
+          
+        if (isNarration) {
+          const narrStyle = `padding:${isPrevNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px ${isNextNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px;text-align:center;`;
+          html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
+          html += `<div style="${cleanStyle(narrStyle)}">`;
+          const flatPieces = finalHtmlContentPieces.flat();
+          html += flatPieces.map((piece, pIdx) => {
+            const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
+            return `${prefix}<div style="white-space:pre-wrap;word-break:break-all;"><b><i>${piece}</i></b></div>`;
+          }).join('');
+          html += `</div>`;
+          if (blocksAfterHtml) {
+            html += blocksAfterHtml;
           }
+          if (hasDividerBelow) {
+            html += dividerHtml;
+          }
+          html += `</div>`;
+        } else {
+          html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
+          if (log.isCommand) {
+            const nameHtml = log.name !== 'system' ? `<b class="c-tx ${charClass}">[ ${log.name} ]</b>` : '';
+            const marginLeft = log.name !== 'system' ? 'margin-left:8px;' : '';
+            const cmdMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : `${s(8)}px`;
+            if (format === 'secret') {
+              const tabColor = tabSet?.color || '#ffd400';
+              const secretBg = getSecretBg(tabColor);
+              // 💡 다이스(명령어) 인라인 방식 비밀 탭: 여백 0, 테두리 없음, 모서리 직각
+              html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
+            } else {
+              html += `<div style="${cleanStyle(`display:flex;align-items:center;flex-wrap:wrap;background:${commandBg};border:1px solid ${borderColor};padding:${paddingVertical}px ${paddingHorizontal}px;border-radius:8px;margin:${cmdMarginTop} ${paddingHorizontal}px ${s(8)}px ${paddingHorizontal}px`)}">${nameHtml}<b><span style="${cleanStyle(`color:${textColor};font-family:'NanumGothicCodingLigature',monospace;${marginLeft}`)}">${finalHtmlContent}</span></b></div>`;
+            }
+          } else if (format === 'other') {
+            const rowStyle = `padding:${s(2)}px ${paddingHorizontal}px;display:flex;gap:${gapSize / 1.5}px;align-items:baseline;`;
+            html += `<div style="${cleanStyle(rowStyle)}">
+              <b><span style="${cleanStyle(`flex-shrink:0;font-size:0.96em;color:${otherNameColor}`)}">${log.name}</span></b>
+              <div style="${cleanStyle(otherContentStyle)}">${finalHtmlContent}</div>
+            </div>`;
+          } else if (format === 'info') {
+            const infoMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
+            const infoMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
+            const infoMargin = `${infoMarginTop} ${paddingHorizontal}px ${infoMarginBottomVal} ${paddingHorizontal}px`;
+            const infoRadius = shouldMergeStyle 
+              ? `${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'}`
+              : '4px';
+            const infoBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
+            const infoBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
+   
+            const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:4px solid ${borderColor};margin:${infoMargin};border-radius:${infoRadius};${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
+            html += `<div style="${cleanStyle(wrapperStyle)}">
+              <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
+              <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+            </div>`;
+          } else if (format === 'secret') {
+            const tabColor = tabSet?.color || '#ffd400';
+            const secretBg = getSecretBg(tabColor);
+            // 💡 이미지 크롭/확대 비율인 customImgStyle을 적용합니다!
+            const imgTag = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            const secretMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
+            const secretMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
+            // 💡 인라인 방식 비밀 탭: 여백 0, 모서리 0, 테두리 없음
+            const secretMargin = `${secretMarginTop} 0 ${secretMarginBottomVal} 0`;
+            const secretRadius = '0';
+            const secretBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
+            const secretBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
+   
+            const borderTopStyle = secretBorderTop ? `border-top:${secretBorderTop};` : '';
+            const borderBottomStyle = secretBorderBottom ? `border-bottom:${secretBorderBottom};` : '';
+   
+            const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;background:${secretBg};border-left:none;margin:${secretMargin};border-radius:${secretRadius};${borderTopStyle}${borderBottomStyle}`;
+            html += `
+              <div style="${cleanStyle(wrapperStyle)}">
+                ${imgTag}
+                <div style="${cleanStyle(bodyStyle)}">
+                  <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
+                  <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+                </div>
+              </div>`;
+          } else {
+            // 💡 인라인 방식 일반 탭: 스탠딩 이미지 확대/크롭 비율 똑같이 적용
+            const avatarHtml = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            
+            const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;`;
+            html += `
+              <div style="${cleanStyle(wrapperStyle)}">
+                ${avatarHtml}
+                <div style="${cleanStyle(bodyStyle)}">
+                  <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
+                  <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
+                </div>
+              </div>`;
+          }
+          if (blocksAfterHtml) {
+            html += blocksAfterHtml;
+          }
+          if (hasDividerBelow) {
+            html += dividerHtml;
+          }
+          html += `</div>`;
+        }
+      } else {
+        const charClass = shortenId(log.charId);
+        const isSectionStart = !prevVisibleChunk || hasBlockBefore;
+        const isSectionEnd = !nextVisibleChunk || isNextSameTab === false || hasBlockAfter;
+        let mb = '';
+        let mt = '';
+
+        if (log.isCommand || format === 'secret') {
+          mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-c';
+        } else if (isNarration) {
+          mt = isPrevNarration ? 'c-mt0' : 'c-mt-nr';
+          mb = isNextNarration ? 'c-mb0' : 'c-mb-nr';
+        } else {
+          mt = isPrevSameTab && !hasBlockBefore && shouldMergeStyle ? 'c-mt0' : 'c-mt-n';
+          mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-n';
+        }
+
+        const cl = [mb, mt].filter(Boolean).join(' ');
+        const clStr = `c-i${cl ? ` ${cl}` : ''}${hasSpecialDividerAboveAndNoBadge ? ' c-mt-f' : ''}`;
+        
+        const fullFilterAttrs = getFilterAttrs(log, clStr);
+
+        html += `<div${fullFilterAttrs}>`;
+
+        if (log.isCommand) {
+          const nameHtml = log.name !== 'system' ? `<b class="c-tx ${charClass}">[ ${log.name} ]</b> ` : '';
+          const marginLeft = log.name !== 'system' ? 'margin-left: 8px;' : '';
+          if (format === 'secret') {
+            const tabColor = tabSet?.color || '#ffd400';
+            const secretBg = getSecretBg(tabColor);
+            // 💡 다이스(명령어) 내부 스타일 방식 비밀 탭
+            html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
+          } else {
+            html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
+          }
+        } else if (isNarration) {
+          const flatPieces = finalHtmlContentPieces.flat();
+          html += `<div class="n-r" style="padding: ${isPrevNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px ${isNextNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px;">`;
+          html += flatPieces.map((piece, pIdx) => {
+            const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
+            return `${prefix}<div style="white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word;">${piece}</div>`;
+          }).join('');
+          html += `</div>`;
         } else if (format === 'other') {
-          const rowStyle = `padding:${s(2)}px ${paddingHorizontal}px;display:flex;gap:${gapSize / 1.5}px;align-items:baseline;`;
-          html += `<div style="${cleanStyle(rowStyle)}">
-            <b><span style="${cleanStyle(`flex-shrink:0;font-size:0.96em;color:${otherNameColor}`)}">${log.name}</span></b>
-            <div style="${cleanStyle(otherContentStyle)}">${finalHtmlContent}</div>
-          </div>`;
+          html += `<div class="o-r" style="padding-top: ${s(2)}px; padding-bottom: ${s(2)}px;"><span class="o-nm" style="color: ${otherNameColor}">${log.name}</span><div class="o-c">${finalHtmlContent}</div></div>`;
         } else if (format === 'info') {
-          const infoMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
-          const infoMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
-          const infoMargin = `${infoMarginTop} ${paddingHorizontal}px ${infoMarginBottomVal} ${paddingHorizontal}px`;
-          const infoRadius = shouldMergeStyle 
-            ? `${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'}`
-            : '4px';
-          const infoBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
-          const infoBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
- 
-          const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:4px solid ${borderColor};margin:${infoMargin};border-radius:${infoRadius};${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
-          html += `<div style="${cleanStyle(wrapperStyle)}">
-            <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-            <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
-          </div>`;
+          const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
+          const rad = shouldMergeStyle ? `${tZ ? 0 : 4}px ${tZ ? 0 : 4}px ${bZ ? 0 : 4}px ${bZ ? 0 : 4}px` : '4px';
+          const st = [
+            shouldMergeStyle ? `margin: 0 ${paddingHorizontal}px;` : '',
+            rad !== '4px' ? `border-radius: ${rad};` : '',
+            shouldMergeStyle && tZ ? 'border-top: none;' : '',
+            shouldMergeStyle && bZ ? 'border-bottom: none;' : ''
+          ].filter(Boolean).join(' ');
+
+          html += `<div class="i-r"${st ? ` style="${st}"` : ''}><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div>`;
         } else if (format === 'secret') {
           const tabColor = tabSet?.color || '#ffd400';
           const secretBg = getSecretBg(tabColor);
-          const imgTag = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(aImgStyle)}" />` : ''}</div>`;
-          const secretMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
-          const secretMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
-          const secretMargin = `${secretMarginTop} ${paddingHorizontal}px ${secretMarginBottomVal} ${paddingHorizontal}px`;
-          const secretRadius = shouldMergeStyle 
-            ? `${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isPrevSameTab && !isSectionStart) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'} ${(isNextSameTab && !isSectionEnd) ? '0' : '4px'}`
-            : '4px';
-          const secretBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
-          const secretBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
- 
-          const borderTopStyle = secretBorderTop ? `border-top:${secretBorderTop};` : '';
-          const borderBottomStyle = secretBorderBottom ? `border-bottom:${secretBorderBottom};` : '';
- 
-          const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;background:${secretBg};border-left:4px solid ${tabColor};margin:${secretMargin};border-radius:${secretRadius};${borderTopStyle}${borderBottomStyle}`;
-          html += `
-            <div style="${cleanStyle(wrapperStyle)}">
-              ${imgTag}
-              <div style="${cleanStyle(bodyStyle)}">
-                <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-                <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
-              </div>
-            </div>`;
-        } else {
-          const avatarHtml = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(aImgStyle)}" />` : ''}</div>`;
+          const avSt = hideAvatar ? 'background-color: transparent;' : '';
+          const tZ = isPrevSameTab && !isSectionStart;
           
-          const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;`;
-          html += `
-            <div style="${cleanStyle(wrapperStyle)}">
-              ${avatarHtml}
-              <div style="${cleanStyle(bodyStyle)}">
-                <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
-                <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
-              </div>
-            </div>`;
+          // 💡 일반 대사 내부 스타일 방식 비밀 탭
+          const st = [
+            `background: ${secretBg};`,
+            `border-left: none;`,
+            `margin-left: 0; margin-right: 0;`,
+            `border-radius: 0;`,
+            shouldMergeStyle && tZ ? 'border-top: none;' : ''
+          ].filter(Boolean).join(' ');
+
+          if (hideAllAvatars) {
+            html += `<div class="s-r no-avatar-grid" style="${st}"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
+          } else {
+            // 💡 이미지 크롭/확대 비율인 customImgStyle 적용
+            const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            html += `<div class="s-r" style="${st}">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
+          }
+        } else {
+          const avSt = hideAvatar ? 'background-color: transparent;' : '';
+          if (hideAllAvatars) {
+            html += `<div class="m-r no-avatar-grid"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
+          } else {
+            // 💡 일반 탭 스탠딩 이미지에도 customImgStyle 적용
+            const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            html += `<div class="m-r">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
+          }
         }
         if (blocksAfterHtml) {
           html += blocksAfterHtml;
@@ -1244,100 +1359,6 @@ export const generateFinalHtmlStr = (
         }
         html += `</div>`;
       }
-    } else {
-      const charClass = shortenId(log.charId);
-      const isSectionStart = !prevVisibleChunk || hasBlockBefore;
-      const isSectionEnd = !nextVisibleChunk || isNextSameTab === false || hasBlockAfter;
-      let mb = '';
-      let mt = '';
-
-      if (log.isCommand || format === 'secret') {
-        mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-c';
-      } else if (isNarration) {
-        mt = isPrevNarration ? 'c-mt0' : 'c-mt-nr';
-        mb = isNextNarration ? 'c-mb0' : 'c-mb-nr';
-      } else {
-        mt = isPrevSameTab && !hasBlockBefore && shouldMergeStyle ? 'c-mt0' : 'c-mt-n';
-        mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-n';
-      }
-
-      const cl = [mb, mt].filter(Boolean).join(' ');
-      const clStr = `c-i${cl ? ` ${cl}` : ''}${hasSpecialDividerAboveAndNoBadge ? ' c-mt-f' : ''}`;
-      
-      const fullFilterAttrs = getFilterAttrs(log, clStr);
-
-      html += `<div${fullFilterAttrs}>`;
-
-      if (log.isCommand) {
-        const nameHtml = log.name !== 'system' ? `<b class="c-tx ${charClass}">[ ${log.name} ]</b> ` : '';
-        const marginLeft = log.name !== 'system' ? 'margin-left: 8px;' : '';
-        if (format === 'secret') {
-          const tabColor = tabSet?.color || '#ffd400';
-          const secretBg = getSecretBg(tabColor);
-          html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; margin: ${s(8)}px ${paddingHorizontal}px; border-radius: 8px;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
-        } else {
-          html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap;">${nameHtml}<span class="c-tx" style="${marginLeft}">${finalHtmlContent}</span></div>`;
-        }
-      } else if (isNarration) {
-        const flatPieces = finalHtmlContentPieces.flat();
-        html += `<div class="n-r" style="padding: ${isPrevNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px ${isNextNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px;">`;
-        html += flatPieces.map((piece, pIdx) => {
-          const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
-          return `${prefix}<div style="white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word;">${piece}</div>`;
-        }).join('');
-        html += `</div>`;
-      } else if (format === 'other') {
-        html += `<div class="o-r" style="padding-top: ${s(2)}px; padding-bottom: ${s(2)}px;"><span class="o-nm" style="color: ${otherNameColor}">${log.name}</span><div class="o-c">${finalHtmlContent}</div></div>`;
-      } else if (format === 'info') {
-        const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
-        const rad = shouldMergeStyle ? `${tZ ? 0 : 4}px ${tZ ? 0 : 4}px ${bZ ? 0 : 4}px ${bZ ? 0 : 4}px` : '4px';
-        const st = [
-          shouldMergeStyle ? `margin: 0 ${paddingHorizontal}px;` : '',
-          rad !== '4px' ? `border-radius: ${rad};` : '',
-          shouldMergeStyle && tZ ? 'border-top: none;' : '',
-          shouldMergeStyle && bZ ? 'border-bottom: none;' : ''
-        ].filter(Boolean).join(' ');
-
-        html += `<div class="i-r"${st ? ` style="${st}"` : ''}><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div>`;
-      } else if (format === 'secret') {
-        const tabColor = tabSet?.color || '#ffd400';
-        const secretBg = getSecretBg(tabColor);
-        const avSt = hideAvatar ? 'background-color: transparent;' : '';
-        const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
-        // rad 변수는 이제 안 쓰지만 에러 방지용으로 둡니다.
-        const rad = shouldMergeStyle ? `${tZ ? 0 : 4}px ${tZ ? 0 : 4}px ${bZ ? 0 : 4}px ${bZ ? 0 : 4}px` : '4px';
-        
-        const st = [
-          `background: ${secretBg};`,
-          `border-left: none;`,                 // 👈 선 지우기
-          `margin-left: 0; margin-right: 0;`,   // 👈 좌우 여백 0
-          `border-radius: 0;`,                  // 👈 둥근 모서리 없애기 (직각)
-          shouldMergeStyle && tZ ? 'border-top: none;' : ''
-        ].filter(Boolean).join(' ');
-
-        if (hideAllAvatars) {
-          html += `<div class="s-r no-avatar-grid" style="${st}"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
-        } else {
-          const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" />` : ''}</div>`;
-          html += `<div class="s-r" style="${st}">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
-        }
-      } else {
-        const avSt = hideAvatar ? 'background-color: transparent;' : '';
-        if (hideAllAvatars) {
-          html += `<div class="m-r no-avatar-grid"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${finalHtmlContent}</div></div></div>`;
-        } else {
-          const avatarHtml = `<div class="m-aw"${avSt ? ` style="${avSt}"` : ''}>${img ? `<img src="${img}" class="m-a" />` : ''}</div>`;
-          html += `<div class="m-r">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${finalHtmlContent}</div></div></div>`;
-        }
-      }
-      if (blocksAfterHtml) {
-        html += blocksAfterHtml;
-      }
-      if (hasDividerBelow) {
-        html += dividerHtml;
-      }
-      html += `</div>`;
-    }
     }
   });
 
