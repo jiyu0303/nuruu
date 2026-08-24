@@ -416,10 +416,10 @@ export const generateFinalHtmlStr = (
     .m-r.no-avatar-grid, .s-r.no-avatar-grid { display: flex; gap: 16px; align-items: flex-start; }
     .s-r { margin: ${s(4)}px ${paddingHorizontal}px; border-radius: 4px; }
 
-    .m-aw { width: ${avatarSize}px; height: ${avatarSize}px; flex-shrink: 0; background-color: ${avatarPlaceholder}; border-radius: 4px; overflow: hidden; }
+    .m-aw { width: ${avatarSize}px; height: ${avatarSize}px; flex-shrink: 0; background-color: ${hideEmptyAvatars ? 'transparent' : avatarPlaceholder}; border-radius: 4px; overflow: hidden; }
     .m-a { 
       width: ${avatarSize}px; height: ${avatarSize}px; flex-shrink: 0; 
-      background-color: ${avatarPlaceholder}; border-radius: 4px; object-fit: cover; object-position: center top;
+      background-color: ${hideEmptyAvatars ? 'transparent' : avatarPlaceholder}; border-radius: 4px; object-fit: cover; object-position: center top;
     }
     .m-b { flex-grow: 1; line-height: ${lineHeight}; }
     .m-nm { font-weight: bold; font-size: ${r(textFontSize * 0.96)}px; margin-bottom: ${Math.max(4, Math.ceil(textFontSize * (lineHeight >= 1.4 ? 0.3 : 0.5)))}px; display: block; }
@@ -434,7 +434,7 @@ export const generateFinalHtmlStr = (
 
     .i-r { 
       padding: ${paddingVertical}px ${paddingHorizontal}px; background: ${infoBg};
-      border-left: 4px solid ${borderColor}; margin: ${s(8)}px ${paddingHorizontal}px; border-radius: 4px;
+      border-left: 7px solid ${borderColor}; margin: ${s(8)}px ${paddingHorizontal}px; border-radius: 4px;
     }
     
     .c-bx { 
@@ -916,9 +916,9 @@ export const generateFinalHtmlStr = (
         if (isInline) {
           let wrapperStyle = '';
           if (illFormat === 'info') {
-            wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'};border-left:4px solid ${isDark ? '#444' : '#DDD'};margin:4px ${paddingHorizontal}px;border-radius:4px;display:flex;justify-content:${justify};`;
+            wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'};border-left:7px solid ${isDark ? '#444' : '#DDD'};margin:4px ${paddingHorizontal}px;border-radius:4px;display:flex;justify-content:${justify};`;
           } else if (illFormat === 'secret') {
-            wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${getSecretBg(illTabColor)};border-left:4px solid ${illTabColor};margin:4px ${paddingHorizontal}px;border-radius:4px;display:flex;justify-content:${justify};`;
+            wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${getSecretBg(illTabColor)};border-left:7px solid ${illTabColor};margin:4px ${paddingHorizontal}px;border-radius:4px;display:flex;justify-content:${justify};`;
           } else {
             wrapperStyle = `margin:4px ${paddingHorizontal}px;display:flex;justify-content:${justify};`;
           }
@@ -934,7 +934,7 @@ export const generateFinalHtmlStr = (
             </div>`;
           } else if (illFormat === 'secret') {
             const secretBg = getSecretBg(illTabColor);
-            const wrapperStyle = `background: ${secretBg}; border-left: 4px solid ${illTabColor}; margin: 4px ${paddingHorizontal}px; border-radius: 4px; display: flex; justify-content: ${justify};`;
+            const wrapperStyle = `background: ${secretBg}; border-left: 7px solid ${illTabColor}; margin: 4px ${paddingHorizontal}px; border-radius: 4px; display: flex; justify-content: ${justify};`;
             html += `<div${fAttrs} class="s-r" style="${cleanStyle(wrapperStyle)}">
               <img src="${ill.url}" style="${cleanStyle(`${widthVal}border-radius:8px;display:block`)}" referrerPolicy="no-referrer" onerror="this.style.display='none'" />
             </div>`;
@@ -1125,6 +1125,21 @@ export const generateFinalHtmlStr = (
           // 크롭이 안 된 기본 상태
           customImgStyle = `width: 100%; height: 100%; object-fit: cover; object-position: center top;`;
         }
+      
+      }
+
+      // 💡 2. 다이스 박스를 아예 없애고, 일반 대사처럼 텍스트 색상만 입히도록 공통 처리! (시스템 제외)
+      if (log.isCommand && log.name !== 'system') {
+        let chatColor = isDark ? 'inherit' : '#333333';
+        const contentStr = log.content;
+        if (contentStr.includes('대성공')) chatColor = '#ffbf00';
+        else if (contentStr.includes('극단적 성공') || contentStr.includes('대단한 성공')) chatColor = '#fc7300';
+        else if (contentStr.includes('어려운 성공')) chatColor = '#00d617';
+        else if (contentStr.includes('보통 성공')) chatColor = '#009af9';
+        else if (contentStr.includes('＞ 실패')) chatColor = '#ff008f';
+        else if (contentStr.includes('＞ 대실패')) chatColor = '#ff1000';
+        
+        finalHtmlContent = `<span style="color: ${chatColor}; font-weight: bold;">${finalHtmlContent}</span>`;
       }
 
       if (isInline) {
@@ -1143,7 +1158,8 @@ export const generateFinalHtmlStr = (
         let itemMarginTop = '0';
         let itemMarginBottom = '0';
 
-        if (log.isCommand || format === 'secret') {
+        // 다이스도 일반 대사 여백을 따르도록 조건 변경
+        if ((log.isCommand && log.name === 'system') || format === 'secret') {
           itemMarginBottom = mergeWithNext ? '0' : `${effectiveBlockSpacing}px`;
         } else if (isNarration) {
           itemMarginTop = isPrevNarration && !hasBlockBefore ? '0' : `${Math.floor(narrationMargin / 2)}px`;
@@ -1184,39 +1200,16 @@ export const generateFinalHtmlStr = (
         } else {
           html += `<div${fullFilterAttrs} style="position:relative;margin-bottom:${itemMarginBottom};margin-top:${itemMarginTop};">`;
           
-          if (log.isCommand) {
-            // 💡 2. 시스템 메시지 서식 추가
-            if (log.name === 'system') {
-              const narrStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;text-align:center;font-style:italic;font-weight:bold;color:${textColor};`;
-              html += `<div style="${cleanStyle(narrStyle)}">`;
-              const flatPieces = finalHtmlContentPieces.flat();
-              html += flatPieces.map((piece, pIdx) => {
-                const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
-                return `${prefix}<div style="white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;">${piece}</div>`;
-              }).join('');
-              html += `</div>`;
-            } else {
-              // 💡 3. 다이스 대성공/실패 등 컬러 추가
-              let chatColor = isDark ? 'inherit' : '#333333';
-              const contentStr = log.content;
-              if (contentStr.includes('대성공')) chatColor = '#ffbf00';
-              else if (contentStr.includes('극단적 성공') || contentStr.includes('대단한 성공')) chatColor = '#fc7300';
-              else if (contentStr.includes('어려운 성공')) chatColor = '#00d617';
-              else if (contentStr.includes('보통 성공')) chatColor = '#009af9';
-              else if (contentStr.includes('＞ 실패')) chatColor = '#ff008f';
-              else if (contentStr.includes('＞ 대실패')) chatColor = '#ff1000';
-
-              const nameHtml = `<b class="c-tx ${charClass}">[ ${log.name} ]</b>`;
-              const marginLeft = 'margin-left:8px;';
-              const cmdMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : `${s(8)}px`;
-              if (format === 'secret') {
-                const tabColor = tabSet?.color || '#ffd400';
-                const secretBg = getSecretBg(tabColor);
-                html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft} color:${chatColor};">${finalHtmlContent}</span></div>`;
-              } else {
-                html += `<div style="${cleanStyle(`display:flex;align-items:center;flex-wrap:wrap;background:${commandBg};border:1px solid ${borderColor};padding:${paddingVertical}px ${paddingHorizontal}px;border-radius:8px;margin:${cmdMarginTop} ${paddingHorizontal}px ${s(8)}px ${paddingHorizontal}px`)}">${nameHtml}<b><span style="${cleanStyle(`color:${chatColor};font-family:'NanumGothicCodingLigature',monospace;${marginLeft}`)}">${finalHtmlContent}</span></b></div>`;
-              }
-            }
+          if (log.isCommand && log.name === 'system') {
+            // 시스템 메시지 중앙 정렬 + 이탤릭 유지
+            const narrStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;text-align:center;font-style:italic;font-weight:bold;color:${textColor};`;
+            html += `<div style="${cleanStyle(narrStyle)}">`;
+            const flatPieces = finalHtmlContentPieces.flat();
+            html += flatPieces.map((piece, pIdx) => {
+              const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
+              return `${prefix}<div style="white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;">${piece}</div>`;
+            }).join('');
+            html += `</div>`;
           } else if (format === 'other') {
             const rowStyle = `padding:${s(2)}px ${paddingHorizontal}px;display:flex;gap:${gapSize / 1.5}px;align-items:baseline;`;
             html += `<div style="${cleanStyle(rowStyle)}">
@@ -1230,8 +1223,8 @@ export const generateFinalHtmlStr = (
             const infoBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
             const infoBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
             
-            // 💡 4. 인라인 방식 정보 탭: 모서리 강제 0
-            const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:4px solid ${borderColor};margin:${infoMargin};border-radius:0;${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
+            // 💡 인라인 방식 정보 탭: 모서리 강제 0
+            const wrapperStyle = `padding:${paddingVertical}px ${paddingHorizontal}px;background:${infoBg};border-left:7px solid ${borderColor};margin:${infoMargin};border-radius:0;${infoBorderTop ? `border-top:${infoBorderTop};` : ''}${infoBorderBottom ? `border-bottom:${infoBorderBottom};` : ''}`;
             html += `<div style="${cleanStyle(wrapperStyle)}">
               <b><span class="${charClass}" style="${cleanStyle(nameStyle)}">${log.name}</span></b>
               <div style="${cleanStyle(contentStyle)}">${finalHtmlContent}</div>
@@ -1240,11 +1233,11 @@ export const generateFinalHtmlStr = (
             const tabColor = tabSet?.color || '#ffd400';
             const secretBg = getSecretBg(tabColor);
             const imgTag = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
-            const secretMarginTop = hasSpecialDividerAboveAndNoBadge ? '0' : (mergeWithPrev ? '0' : '4px');
-            const secretMarginBottomVal = mergeWithNext ? '0' : (hasSpecialDividerBelow ? '0' : '4px');
-            const secretMargin = `${secretMarginTop} 0 ${secretMarginBottomVal} 0`;
-            const secretBorderTop = shouldMergeStyle && isPrevSameTab && !isSectionStart ? 'none' : '';
-            const secretBorderBottom = shouldMergeStyle && isNextSameTab && !isSectionEnd ? 'none' : '';
+            
+            // 💡 비밀 탭 내부 여백 및 테두리 완벽 제거 (항상 0으로 밀착!)
+            const secretMargin = `0`;
+            const secretBorderTop = 'none';
+            const secretBorderBottom = 'none';
    
             const borderTopStyle = secretBorderTop ? `border-top:${secretBorderTop};` : '';
             const borderBottomStyle = secretBorderBottom ? `border-bottom:${secretBorderBottom};` : '';
@@ -1259,6 +1252,7 @@ export const generateFinalHtmlStr = (
                 </div>
               </div>`;
           } else {
+            // 이제 일반 탭을 쓰는 주사위 다이스 로그도 아바타가 있는 이 구문을 타게 됩니다!
             const avatarHtml = `<div style="${cleanStyle(awStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
             
             const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;`;
@@ -1286,7 +1280,7 @@ export const generateFinalHtmlStr = (
         let mb = '';
         let mt = '';
 
-        if (log.isCommand || format === 'secret') {
+        if ((log.isCommand && log.name === 'system') || format === 'secret') {
           mb = isNextSameTab && !hasBlockAfter && shouldMergeStyle ? 'c-mb0' : 'c-mb-c';
         } else if (isNarration) {
           mt = isPrevNarration ? 'c-mt0' : 'c-mt-nr';
@@ -1303,37 +1297,14 @@ export const generateFinalHtmlStr = (
 
         html += `<div${fullFilterAttrs}>`;
 
-        if (log.isCommand) {
-          // 💡 2-2. 내부 스타일 방식 시스템 메시지 서식 추가
-          if (log.name === 'system') {
-            html += `<div class="n-r" style="padding: ${paddingVertical}px ${paddingHorizontal}px;">`;
-            const flatPieces = finalHtmlContentPieces.flat();
-            html += flatPieces.map((piece, pIdx) => {
-              const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
-              return `${prefix}<div style="white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word;">${piece}</div>`;
-            }).join('');
-            html += `</div>`;
-          } else {
-            // 💡 3-2. 내부 스타일 방식 다이스 색상 처리
-            let chatColor = isDark ? 'inherit' : '#333333';
-            const contentStr = log.content;
-            if (contentStr.includes('대성공')) chatColor = '#ffbf00';
-            else if (contentStr.includes('극단적 성공') || contentStr.includes('대단한 성공')) chatColor = '#fc7300';
-            else if (contentStr.includes('어려운 성공')) chatColor = '#00d617';
-            else if (contentStr.includes('보통 성공')) chatColor = '#009af9';
-            else if (contentStr.includes('＞ 실패')) chatColor = '#ff008f';
-            else if (contentStr.includes('＞ 대실패')) chatColor = '#ff1000';
-
-            const nameHtml = `<b class="c-tx ${charClass}">[ ${log.name} ]</b> `;
-            const marginLeft = 'margin-left: 8px;';
-            if (format === 'secret') {
-              const tabColor = tabSet?.color || '#ffd400';
-              const secretBg = getSecretBg(tabColor);
-              html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap; background: ${secretBg}; border: 1px solid ${borderColor}; border-left: none; margin: ${s(8)}px 0; border-radius: 0;">${nameHtml}<span class="c-tx" style="${marginLeft} color: ${chatColor};">${finalHtmlContent}</span></div>`;
-            } else {
-              html += `<div class="c-bx" style="display: flex; align-items: center; flex-wrap: wrap;">${nameHtml}<span class="c-tx" style="${marginLeft} color: ${chatColor};">${finalHtmlContent}</span></div>`;
-            }
-          }
+        if (log.isCommand && log.name === 'system') {
+          html += `<div class="n-r" style="padding: ${paddingVertical}px ${paddingHorizontal}px;">`;
+          const flatPieces = finalHtmlContentPieces.flat();
+          html += flatPieces.map((piece, pIdx) => {
+            const prefix = pIdx > 0 ? `<div class="s-p-ob"></div>` : '';
+            return `${prefix}<div style="white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word;">${piece}</div>`;
+          }).join('');
+          html += `</div>`;
         } else if (isNarration) {
           const flatPieces = finalHtmlContentPieces.flat();
           html += `<div class="n-r" style="padding: ${isPrevNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px ${isNextNarration ? '0.4em' : `${paddingVertical}px`} ${paddingHorizontal}px;">`;
@@ -1347,7 +1318,7 @@ export const generateFinalHtmlStr = (
         } else if (format === 'info') {
           const tZ = isPrevSameTab && !isSectionStart, bZ = isNextSameTab && !isSectionEnd;
           
-          // 💡 4-2. 내부 스타일 방식 정보 탭: 모서리 강제 0
+          // 💡 내부 스타일 방식 정보 탭: 모서리 강제 0
           const st = [
             shouldMergeStyle ? `margin: 0 ${paddingHorizontal}px;` : '',
             `border-radius: 0;`,
@@ -1360,14 +1331,15 @@ export const generateFinalHtmlStr = (
           const tabColor = tabSet?.color || '#ffd400';
           const secretBg = getSecretBg(tabColor);
           const avSt = hideAvatar ? 'background-color: transparent;' : '';
-          const tZ = isPrevSameTab && !isSectionStart;
           
+          // 💡 비밀 탭 내부 여백 및 테두리 완벽 제거 (항상 0으로 밀착!)
           const st = [
             `background: ${secretBg};`,
             `border-left: none;`,
-            `margin-left: 0; margin-right: 0;`,
+            `margin: 0;`,
             `border-radius: 0;`,
-            shouldMergeStyle && tZ ? 'border-top: none;' : ''
+            `border-top: none;`,
+            `border-bottom: none;`
           ].filter(Boolean).join(' ');
 
           if (hideAllAvatars) {
