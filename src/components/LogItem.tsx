@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { Pencil, Trash2, Plus, X, Image as ImageIcon } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn, r, linkifyAndFormat } from '../utils';
 import { LogImage } from './LogImage';
 import { LogAvatar } from './LogAvatar';
@@ -47,7 +47,9 @@ export const LogItem = React.memo(({
   isPrevNarration,
   isNextNarration,
   editingLogId = null,
-  setEditingLogId
+  setEditingLogId,
+  insertSystemLogBlock, // 아까 추가한 것
+  moveLog
 }: any) => {
   const { 
     theme, disableOtherColor, fontSize, textFontSize,
@@ -204,6 +206,7 @@ export const LogItem = React.memo(({
           onToggleSplit={() => onAddBlock(logId, 0, 'split')}
           onInsertImage={() => onToggleImageInput(logId, 0)}
           onInsertLog={() => insertLogBlock(log.id, isTopLevel)}
+          onInsertSystem={() => insertSystemLogBlock(log.id, isTopLevel)}
           allowSplit={!isTopLevel && !(isLastLog && blocks.length === 0)}
           isTopLevel={isTopLevel}
           disabled={isHoveringButton}
@@ -310,6 +313,7 @@ export const LogItem = React.memo(({
               onToggleSplit={() => onAddBlock(logId, i + 1, 'split')}
               onInsertImage={() => onToggleImageInput(logId, i + 1)}
               onInsertLog={() => insertLogBlock(log.id, isTopLevel)}
+              onInsertSystem={() => insertSystemLogBlock(log.id, isTopLevel)}
               allowSplit={!(isLastLog && i === blocks.length - 1)}
               disabled={isHoveringButton}
               onDropIllustration={(illId) => onUpdateIllustration(illId, { targetLogId: stableId, position: 'after' })}
@@ -925,6 +929,35 @@ export const LogItem = React.memo(({
           <div className="bg-black/85 text-white/95 border border-white/10 rounded px-1.5 py-0.5 text-[9.5px] font-bold font-mono tracking-wider shadow-md leading-none">
             #{originalLogIndex + 1}
           </div>
+          
+          {/* ▼ 여기서부터 위/아래 이동 버튼 추가 ▼ */}
+          <button 
+            onClick={() => moveLog(log.id, 'up')} 
+            className={cn(
+              "p-1 rounded border backdrop-blur-sm transition-colors",
+              theme === 'dark' 
+                ? "bg-stone-800/80 text-white/60 hover:text-white border-white/10" 
+                : "bg-white/90 text-stone-600 hover:text-stone-900 border-stone-200"
+            )}
+            title="위로 이동"
+          >
+            <ArrowUp className="w-3 h-3" />
+          </button>
+          
+          <button 
+            onClick={() => moveLog(log.id, 'down')} 
+            className={cn(
+              "p-1 rounded border backdrop-blur-sm transition-colors",
+              theme === 'dark' 
+                ? "bg-stone-800/80 text-white/60 hover:text-white border-white/10" 
+                : "bg-white/90 text-stone-600 hover:text-stone-900 border-stone-200"
+            )}
+            title="아래로 이동"
+          >
+            <ArrowDown className="w-3 h-3" />
+          </button>
+          {/* ▲ 여기까지 추가 ▲ */}
+
           <button 
             onClick={() => { setEditingLogId(log.id); setEditContent(log.content.replace(/<br\s*\/?>/gi, '\n')); setEditCharId(log.charId); }} 
             className={cn(

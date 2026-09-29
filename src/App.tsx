@@ -2171,20 +2171,27 @@ const [isLocked, setIsLocked] = useState(true);
   }, [logs, tabSettings, saveToHistory]);
 
   const onEditLog = useCallback((id: string, content: string) => {
-    if (id.startsWith('merged:')) {
-      const ids = id.replace('merged:', '').split(',');
-      const firstId = ids[0];
-      const otherIds = ids.slice(1);
+    setLogs((prevLogs) => {
+      let next;
+
+      if (id.startsWith('merged:')) {
+        const ids = id.replace('merged:', '').split(',');
+        const firstId = ids[0];
+        const otherIds = ids.slice(1);
+        
+        // 최신 상태인 prevLogs를 기반으로 필터링 및 맵핑
+        next = prevLogs.filter(l => !otherIds.includes(l.id)).map(l => l.id === firstId ? { ...l, content } : l);
+      } else {
+        // 최신 상태인 prevLogs를 기반으로 맵핑
+        next = prevLogs.map(l => l.id === id ? { ...l, content } : l);
+      }
+
+      // 새로 계산된 next를 히스토리에 바로 저장
+      saveToHistory({ logs: next });
       
-      const next = logs.filter(l => !otherIds.includes(l.id)).map(l => l.id === firstId ? { ...l, content } : l);
-      setLogs(next);
-      saveToHistory({ logs: next });
-    } else {
-      const next = logs.map(l => l.id === id ? { ...l, content } : l);
-      setLogs(next);
-      saveToHistory({ logs: next });
-    }
-  }, [logs, saveToHistory]);
+      return next; // 화면 상태 업데이트
+    });
+  }, [saveToHistory]);
 
   const onDeleteLog = useCallback((id: string) => {
     // Find index in mergedLogs before deleting
@@ -2249,6 +2256,63 @@ const [isLocked, setIsLocked] = useState(true);
     setLogs(nextLogs);
     saveToHistory({ logs: nextLogs });
     setEditingLogId(newLogId);
+  }, [logs, saveToHistory]);
+
+  // ★ 추가 기능 1: 시스템 메시지 전용 추가 로직
+  const insertSystemLogBlock = useCallback((afterLogId: string, insertBefore: boolean = false) => {
+    const lastId = afterLogId.startsWith('merged:')
+      ? afterLogId.replace('merged:', '').split(',').pop()!
+      : afterLogId;
+
+    const targetIndex = logs.findIndex(l => l.id === lastId);
+    if (targetIndex === -1) return;
+
+    const referenceLog = logs[targetIndex];
+    const newLogId = `log_${Date.now()}`;
+    const newLog = {
+      id: newLogId,
+      charId: 'system', // 화자를 system으로 고정
+      name: 'system', // 이름을 system으로 고정
+      color: '#EEEEEE',
+      tabId: referenceLog.tabId,
+      tab: referenceLog.tab,
+      content: "",
+      isCommand: true, // 시스템 메시지 스타일이 적용되도록 설정
+      isHiddenContent: false,
+      isContinuation: false,
+      sectionId: referenceLog.sectionId,
+    };
+
+    const nextLogs = [...logs];
+    if (insertBefore) {
+      nextLogs.splice(targetIndex, 0, newLog);
+    } else {
+      nextLogs.splice(targetIndex + 1, 0, newLog);
+    }
+    setLogs(nextLogs);
+    saveToHistory({ logs: nextLogs });
+    setEditingLogId(newLogId);
+  }, [logs, saveToHistory]);
+
+  // ★ 추가 기능 2: 로그 위/아래 순서 이동 로직
+  const moveLog = useCallback((logId: string, direction: 'up' | 'down') => {
+    const index = logs.findIndex(l => l.id === logId);
+    if (index === -1) return;
+    
+    // 맨 위인데 위로 가려 하거나, 맨 아래인데 아래로 가려 하면 무시
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === logs.length - 1) return;
+
+    const nextLogs = [...logs];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    // 두 로그의 자리를 맞바꿈(Swap)
+    const temp = nextLogs[index];
+    nextLogs[index] = nextLogs[newIndex];
+    nextLogs[newIndex] = temp;
+
+    setLogs(nextLogs);
+    saveToHistory({ logs: nextLogs });
   }, [logs, saveToHistory]);
 
   const copyToClipboard = (text: string) => {
@@ -4557,6 +4621,8 @@ const [isLocked, setIsLocked] = useState(true);
                               editingLogId={editingLogId}
                               setEditingLogId={setEditingLogId}
                               isDraggingIllustration={isDraggingIllustration}
+                              insertSystemLogBlock={insertSystemLogBlock}
+                              moveLog={moveLog}
                             />
                           </div>
                         );

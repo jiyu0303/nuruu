@@ -11,6 +11,7 @@ interface BoundaryEditorProps {
   onToggleSplit: () => void;
   onInsertImage: () => void;
   onInsertLog?: () => void;
+  onInsertSystem?: () => void; // ★ 시스템 메시지 추가용 함수(prop) 정의
   disabled?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const BoundaryEditor = React.memo(({
   onToggleSplit,
   onInsertImage,
   onInsertLog,
+  onInsertSystem, // ★ props로 받아오기
   disabled = false,
   onDropIllustration,
 }: BoundaryEditorProps & { onDropIllustration?: (illId: string) => void }) => {
@@ -89,7 +91,7 @@ export const BoundaryEditor = React.memo(({
             disabled={isClicked}
             onClick={() => handleClick(onToggleSplit)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all  border pointer-events-auto",
+              "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border pointer-events-auto",
               isDark ? "bg-[#222] border-white/10 text-white/80 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white" : "bg-white border-stone-200 text-stone-600 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white",
               isClicked && "cursor-default"
             )}
@@ -103,7 +105,7 @@ export const BoundaryEditor = React.memo(({
           disabled={isClicked}
           onClick={() => handleClick(onInsertImage)}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all  border pointer-events-auto",
+            "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border pointer-events-auto",
             isDark ? "bg-[#222] border-white/10 text-white/80 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white" : "bg-white border-stone-200 text-stone-600 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white",
             isClicked && "cursor-default"
           )}
@@ -117,7 +119,7 @@ export const BoundaryEditor = React.memo(({
             disabled={isClicked}
             onClick={() => handleClick(onInsertLog)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all  border pointer-events-auto",
+              "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border pointer-events-auto",
               isDark ? "bg-[#222] border-white/10 text-white/80 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white" : "bg-white border-stone-200 text-stone-600 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white",
               isClicked && "cursor-default"
             )}
@@ -125,6 +127,22 @@ export const BoundaryEditor = React.memo(({
           >
             <Plus className="w-3 h-3" />
             <span>대사 추가</span>
+          </button>
+        )}
+        {/* ★ 시스템 메시지 추가 버튼 생성 */}
+        {onInsertSystem && (
+          <button 
+            disabled={isClicked}
+            onClick={() => handleClick(onInsertSystem)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all border pointer-events-auto",
+              isDark ? "bg-[#222] border-white/10 text-white/80 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white" : "bg-white border-stone-200 text-stone-600 hover:bg-[#4799c7] hover:border-[#4799c7] hover:text-white",
+              isClicked && "cursor-default"
+            )}
+            title="시스템 메시지 추가"
+          >
+            <MessageSquare className="w-3 h-3" />
+            <span>시스템 추가</span>
           </button>
         )}
       </div>
