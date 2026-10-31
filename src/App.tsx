@@ -654,7 +654,7 @@ const [isLocked, setIsLocked] = useState(true);
 
 const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
   'ccfolia_collapseChat',
-  true,
+  false,
   undefined,
   undefined,
   rememberSettings
