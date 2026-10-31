@@ -2116,27 +2116,46 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
   };
 
   const onChangeSpeaker = useCallback((logId: string, newCharId: string) => {
-    const newChar = charSettings[newCharId];
-    if (!newChar) return;
+  const newChar = charSettings[newCharId];
+  if (!newChar) return;
+
+  setLogs((prevLogs) => {
+    let nextLogs;
 
     if (logId.startsWith('merged:')) {
       const ids = logId.replace('merged:', '').split(',');
       const firstId = ids[0];
       const otherIds = ids.slice(1);
 
-      const next = logs.filter(l => !otherIds.includes(l.id)).map(l => 
-        l.id === firstId ? { ...l, charId: newChar.id, name: newChar.name, color: newChar.color } : l
-      );
-      setLogs(next);
-      saveToHistory({ logs: next });
+      nextLogs = prevLogs
+        .filter((log) => !otherIds.includes(log.id))
+        .map((log) =>
+          log.id === firstId
+            ? {
+                ...log,
+                charId: newCharId,
+                name: newChar.name,
+                color: newChar.color,
+              }
+            : log
+        );
     } else {
-      const next = logs.map(l => 
-        l.id === logId ? { ...l, charId: newChar.id, name: newChar.name, color: newChar.color } : l
+      nextLogs = prevLogs.map((log) =>
+        log.id === logId
+          ? {
+              ...log,
+              charId: newCharId,
+              name: newChar.name,
+              color: newChar.color,
+            }
+          : log
       );
-      setLogs(next);
-      saveToHistory({ logs: next });
     }
-  }, [logs, charSettings, saveToHistory]);
+
+    saveToHistory({ logs: nextLogs });
+    return nextLogs;
+  });
+}, [charSettings, saveToHistory]);
 
     const onChangeExpression = useCallback((logId: string, newIconUrl: string) => {
     if (logId.startsWith('merged:')) {
@@ -2188,6 +2207,18 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
   iconUrl: string;
 }) => {
   setLogs((prevLogs) => {
+    const newChar = charSettings[changes.charId];
+
+    const updateLog = (log: (typeof prevLogs)[number]) => ({
+      ...log,
+      content: changes.content,
+      charId: changes.charId,
+      name: newChar?.name ?? log.name,
+      color: newChar?.color ?? log.color,
+      tabId: changes.tabId,
+      iconUrl: changes.iconUrl,
+    });
+
     let nextLogs;
 
     if (id.startsWith('merged:')) {
@@ -2198,34 +2229,18 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       nextLogs = prevLogs
         .filter((log) => !otherIds.includes(log.id))
         .map((log) =>
-          log.id === firstId
-            ? {
-                ...log,
-                content: changes.content,
-                charId: changes.charId,
-                tabId: changes.tabId,
-                iconUrl: changes.iconUrl,
-              }
-            : log
+          log.id === firstId ? updateLog(log) : log
         );
     } else {
       nextLogs = prevLogs.map((log) =>
-        log.id === id
-          ? {
-              ...log,
-              content: changes.content,
-              charId: changes.charId,
-              tabId: changes.tabId,
-              iconUrl: changes.iconUrl,
-            }
-          : log
+        log.id === id ? updateLog(log) : log
       );
     }
 
     saveToHistory({ logs: nextLogs });
     return nextLogs;
   });
-}, [saveToHistory]);
+}, [charSettings, saveToHistory]);
 
   const onDeleteLog = useCallback((id: string) => {
     // Find index in mergedLogs before deleting
