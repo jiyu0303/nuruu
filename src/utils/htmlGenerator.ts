@@ -42,7 +42,8 @@ export const generateFinalHtmlStr = (
   avatarSizeValue: number = 46,
   showLogDivider: boolean = false,
   illustrations: Illustration[] = [],
-  originalLogs: LogEntry[] = []
+  originalLogs: LogEntry[] = [],
+collapseChat: boolean = true
 ) => {
   const isDark = theme === 'dark';
   const cleanStyle = (styleStr: string) => {
@@ -805,7 +806,38 @@ export const generateFinalHtmlStr = (
     const char = charSettings[log.charId];
     const color = char?.color || log.color;
     const otherNameColor = disableOtherColor ? otherTextColor : color;
-    
+
+    // 잡담 탭이 시작되거나 끝나는 지점에서 접기 영역을 열고 닫습니다.
+    // 기존에 아래쪽에서 사용하던 prevChunk 변수와 겹치지 않도록 별도 이름을 씁니다.
+    const previousChunkForCollapse = chunkIdx > 0 ? chunks[chunkIdx - 1] : null;
+    const previousFormatForCollapse = previousChunkForCollapse
+      ? (tabSettings[previousChunkForCollapse.logs[0].tabId]?.format || 'main')
+      : null;
+
+    if (collapseChat && previousFormatForCollapse === 'other' && format !== 'other') {
+  html += '</div></details>';
+}
+
+    if (format === 'other' && previousFormatForCollapse !== 'other') {
+      // 연속된 잡담 구간에 포함된 로그 수를 미리 계산합니다.
+      // 화면 너비에 따라 달라지는 실제 줄바꿈 수가 아니라, 로그 항목 수를 표시합니다.
+      let chatLineCount = 0;
+      for (let i = chunkIdx; i < chunks.length; i++) {
+        const candidateChunk = chunks[i];
+        const candidateFormat = tabSettings[candidateChunk.logs[0].tabId]?.format || 'main';
+        if (candidateFormat !== 'other') break;
+        chatLineCount += candidateChunk.logs.length;
+      }
+
+      if (collapseChat) {
+        html += `
+          <details class="chat-collapse">
+            <summary>잡담 (${chatLineCount}줄)</summary>
+            <div class="chat-collapse-content">
+        `;
+      }
+    }
+
     // 💡 다이스 로그 등에서 현재 표정(iconUrl)이 비어있다면, 거슬러 올라가 가장 마지막 표정을 찾습니다!
     let recentIconUrl = log.iconUrl;
     if (!recentIconUrl) {
@@ -1398,6 +1430,36 @@ export const generateFinalHtmlStr = (
     }
   });
 
+  // 로그가 잡담 탭에서 끝났다면 마지막 접기 영역도 닫습니다.
+  const lastChunkForCollapse = chunks.length > 0 ? chunks[chunks.length - 1] : null;
+  const lastFormatForCollapse = lastChunkForCollapse
+    ? (tabSettings[lastChunkForCollapse.logs[0].tabId]?.format || 'main')
+    : null;
+  if (collapseChat && lastFormatForCollapse === 'other') {
+    html += '</div></details>';
+  }
+
+  const chatCollapseCSS = `
+    .chat-collapse {
+      margin: 12px 0;
+    }
+    .chat-collapse > summary {
+      cursor: pointer;
+      padding: 8px 12px;
+      color: inherit;
+      opacity: 0.75;
+      font-size: 0.9em;
+      border-bottom: 1px solid ${borderColor};
+      user-select: none;
+    }
+    .chat-collapse > summary:hover {
+      opacity: 1;
+    }
+    .chat-collapse-content {
+      padding-top: 4px;
+    }
+  `;
+
   const finalHtml = `
     <!DOCTYPE html>
     <html lang="ko">
@@ -1411,9 +1473,10 @@ export const generateFinalHtmlStr = (
         ${filterBarCSS}
         ${textResetCSS}
         ${dynamicColorsCss}
+        ${chatCollapseCSS}
         .c-tx { font-family: 'NanumGothicCodingLigature', monospace; font-weight: bold; line-height: 1.6; }
         .c-ct * { box-sizing: border-box; min-width: 0; }
-      </style>` : `<style>${css}</style>`}
+      </style>` : `<style>${css}${chatCollapseCSS}</style>`}
     </head>
     <body>
       <div class="c-mc"${isInline ? ` style="${cleanStyle(`background-color: ${bgColor}; margin: 0; padding: 0`)}"` : ''}>

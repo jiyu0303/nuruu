@@ -652,6 +652,14 @@ const [isLocked, setIsLocked] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
+  'ccfolia_collapseChat',
+  true,
+  undefined,
+  undefined,
+  rememberSettings
+);
+
   // Inject fonts into document head
   useEffect(() => {
     const styleId = 'global-fonts-import';
@@ -919,6 +927,9 @@ const [isLocked, setIsLocked] = useState(true);
   
   };
 
+
+
+  
   const handleIllBulkFetch = async () => {
     if (!illBulkUrl) return;
     
@@ -2170,28 +2181,51 @@ const [isLocked, setIsLocked] = useState(true);
     }
   }, [logs, tabSettings, saveToHistory]);
 
-  const onEditLog = useCallback((id: string, content: string) => {
-    setLogs((prevLogs) => {
-      let next;
+  const onEditLog = useCallback((id: string, changes: {
+  content: string;
+  charId: string;
+  tabId: string;
+  iconUrl: string;
+}) => {
+  setLogs((prevLogs) => {
+    let nextLogs;
 
-      if (id.startsWith('merged:')) {
-        const ids = id.replace('merged:', '').split(',');
-        const firstId = ids[0];
-        const otherIds = ids.slice(1);
-        
-        // 최신 상태인 prevLogs를 기반으로 필터링 및 맵핑
-        next = prevLogs.filter(l => !otherIds.includes(l.id)).map(l => l.id === firstId ? { ...l, content } : l);
-      } else {
-        // 최신 상태인 prevLogs를 기반으로 맵핑
-        next = prevLogs.map(l => l.id === id ? { ...l, content } : l);
-      }
+    if (id.startsWith('merged:')) {
+      const ids = id.replace('merged:', '').split(',');
+      const firstId = ids[0];
+      const otherIds = ids.slice(1);
 
-      // 새로 계산된 next를 히스토리에 바로 저장
-      saveToHistory({ logs: next });
-      
-      return next; // 화면 상태 업데이트
-    });
-  }, [saveToHistory]);
+      nextLogs = prevLogs
+        .filter((log) => !otherIds.includes(log.id))
+        .map((log) =>
+          log.id === firstId
+            ? {
+                ...log,
+                content: changes.content,
+                charId: changes.charId,
+                tabId: changes.tabId,
+                iconUrl: changes.iconUrl,
+              }
+            : log
+        );
+    } else {
+      nextLogs = prevLogs.map((log) =>
+        log.id === id
+          ? {
+              ...log,
+              content: changes.content,
+              charId: changes.charId,
+              tabId: changes.tabId,
+              iconUrl: changes.iconUrl,
+            }
+          : log
+      );
+    }
+
+    saveToHistory({ logs: nextLogs });
+    return nextLogs;
+  });
+}, [saveToHistory]);
 
   const onDeleteLog = useCallback((id: string) => {
     // Find index in mergedLogs before deleting
@@ -2362,7 +2396,8 @@ const [isLocked, setIsLocked] = useState(true);
       avatarSizeValue,
       showLogDivider,
       illustrations,
-      logs
+      logs,
+      collapseChat
     );
   };
 
@@ -3790,6 +3825,16 @@ const [isLocked, setIsLocked] = useState(true);
                         }} 
                       />
                     </div>
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl h-11 relative">
+  <span className="text-[11px] font-bold text-white/70">잡담 접고 펴기</span>
+  <Toggle
+    enabled={collapseChat}
+    onChange={(val) => {
+      setCollapseChat(val);
+      saveToHistory({ collapseChat: val });
+    }}
+  />
+</div>
                     <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl  h-11 relative">
                       <span className="text-[11px] font-bold text-white/70">이미지 배경 숨김</span>
                       <Toggle 

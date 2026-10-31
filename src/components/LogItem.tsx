@@ -33,9 +33,6 @@ export const LogItem = React.memo(({
   onEditLog,
   onDeleteLog,
   insertLogBlock,
-  onChangeSpeaker,
-  onChangeTab,
-  onChangeExpression,
   charSettings: charSettingsFromProps,
   tabOrder,
   splitPointsArray,
@@ -73,7 +70,16 @@ export const LogItem = React.memo(({
   const char = charSettings[log.charId] || { id: log.charId, name: log.name, color: log.color, visible: true, imageUrl: '' };
 
   const isEditing = editingLogId === log.id;
-  const [editContent, setEditContent] = useState(log.content.replace(/<br\s*\/?>/gi, '\n'));
+  const safeLogContent =
+  typeof log.content === 'string'
+    ? log.content
+    : typeof (log.content as any)?.content === 'string'
+      ? (log.content as any).content
+      : '';
+
+const [editContent, setEditContent] = useState(
+  safeLogContent.replace(/<br\s*\/?>/gi, '\n')
+);
   const [editCharId, setEditCharId] = useState(log.charId);
   const [editTabId, setEditTabId] = useState(log.tabId);
   const [editIconUrl, setEditIconUrl] = useState(log.iconUrl || ''); 
@@ -176,25 +182,22 @@ export const LogItem = React.memo(({
     setEditingLogId(null);
   };
 
-  const handleConfirm = () => {
-    const trimmed = editContent.trim();
-    if (!trimmed) {
-      onDeleteLog(log.id);
-    } else {
-      onEditLog(log.id, editContent);
-      if (editCharId !== log.charId && onChangeSpeaker) {
-        onChangeSpeaker(log.id, editCharId);
-      }
-      if (editTabId !== log.tabId && onChangeTab) {
-        onChangeTab(log.id, editTabId);
-      }
-      //  아래 3줄이 추가된 부분입니다! (표정이 바뀌었으면 업데이트) 
-      if (editIconUrl !== log.iconUrl && onChangeExpression) {
-        onChangeExpression(log.id, editIconUrl);
-      }
-    }
-    setEditingLogId(null);
-  };
+const handleConfirm = () => {
+  const trimmed = editContent.trim();
+
+  if (!trimmed) {
+    onDeleteLog(log.id);
+  } else {
+    onEditLog(log.id, {
+      content: editContent,
+      charId: editCharId,
+      tabId: editTabId,
+      iconUrl: editIconUrl,
+    });
+  }
+
+  setEditingLogId(null);
+};
 
   // Define how blocks are rendered
   const renderBlocks = (blocks: any[], logId: string, isTopLevel: boolean = false) => {
