@@ -1187,7 +1187,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         setLightBgColor('#ffffff');
         setDisableOtherColor(true);
         setMergeTabs(new Set(['main', 'secret', 'other']));
-        setShowTabNames(new Set(['secret']));
+        setShowTabNames(new Set());
         setMergeTabStyles(new Set(['secret']));
         setHideEmptyAvatars(false);
         setHideAllAvatars(false);
@@ -1388,7 +1388,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     if (!rememberSettings) {
       setMergeTabs(new Set(['main', 'secret', 'other']));
       setMergeTabStyles(new Set(['secret']));
-      setShowTabNames(new Set(['secret']));
+      setShowTabNames(new Set());
       setHideEmptyAvatars(false);
       setCssFormat('internal');
       setFontSize(14);
