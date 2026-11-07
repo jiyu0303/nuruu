@@ -590,6 +590,7 @@ collapseChat: boolean = true
             mergeTabs.has(format) && 
             mergeTabs.has(prevFormat) &&
             prevLogForContinuation.name === mappedLog.name && 
+            prevLogForContinuation.iconUrl === mappedLog.iconUrl &&
             prevLogForContinuation.tab === mappedLog.tab && 
             !mappedLog.isCommand && 
             !prevLogForContinuation.isCommand &&

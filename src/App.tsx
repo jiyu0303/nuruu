@@ -2417,19 +2417,32 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
   };
 
   const downloadHtml = (section?: { id: string; name: string }) => {
+  try {
     const html = getHtmlString(section?.id);
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+
     a.href = url;
+
     const fileName = pageTitle || originalFileName || 'ccfolia';
     let suffix = '_log';
+
     if (section) {
       suffix = section.name ? `_${section.name}` : `_${section.id}`;
     }
+
     a.download = `${fileName}${suffix}.html`;
+    document.body.appendChild(a);
     a.click();
-  };
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    console.error('HTML 다운로드 실패:', error);
+    alert('HTML 파일을 만드는 중 오류가 발생했습니다. F12 Console을 확인해 주세요.');
+  }
+};
 
   const downloadZip = async () => {
     const JSZip = (await import('jszip')).default;
