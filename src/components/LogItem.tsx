@@ -1058,26 +1058,7 @@ export const LogItem = React.memo(({
                         theme={theme}
                       />
                     </div>
-                    {!editAsSystem && (
-                      <button
-                        type="button"
-                        onClick={() => setEditAsSystem(true)}
-                        className="px-2 py-1 rounded-md border border-[#4799c7]/50 bg-[#4799c7]/10 text-[#4799c7] hover:bg-[#4799c7]/20 text-[10px] font-bold whitespace-nowrap transition-colors"
-                        title="이 로그를 나레이션(시스템) 서식으로 전환"
-                      >
-                        나레이션으로 전환
-                      </button>
-                    )}
-                    {editAsSystem && (
-                      <button
-                        type="button"
-                        onClick={() => setEditAsSystem(false)}
-                        className="px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-[10px] font-bold whitespace-nowrap transition-colors"
-                        title="나레이션(시스템) 서식을 해제하고 원래 발언자로 되돌리기"
-                      >
-                        서식 되돌리기
-                      </button>
-                    )}
+                    
                     {charSettings[editCharId]?.expressions && charSettings[editCharId].expressions.length > 0 && !editAsSystem && (
                       <div className="flex items-center gap-1.5">
                         <span className={cn("text-[10px] whitespace-nowrap font-medium shrink-0", theme === 'dark' ? "text-white/40" : "text-stone-500")}>표정:</span>
@@ -1095,7 +1076,28 @@ export const LogItem = React.memo(({
                           className="w-[120px] text-xs"
                           theme={theme}
                         />
+                        {!editAsSystem && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAsSystem(true)}
+                        className="ml-auto px-2 py-1 rounded-md border border-[#4799c7]/50 bg-[#4799c7]/10 text-[#4799c7] hover:bg-[#4799c7]/20 text-[10px] font-bold whitespace-nowrap transition-colors"
+                        title="이 로그를 나레이션(시스템) 서식으로 전환"
+                      >
+                        나레이션으로 전환
+                      </button>
+                    )}
+                    {editAsSystem && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAsSystem(false)}
+                        className="ml-auto px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-[10px] font-bold whitespace-nowrap transition-colors"
+                        title="나레이션(시스템) 서식을 해제하고 원래 발언자로 되돌리기"
+                      >
+                        서식 되돌리기
+                      </button>
+                    )}
                       </div>
+                    
                     )}
                     
                   </div>
