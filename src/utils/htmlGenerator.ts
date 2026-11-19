@@ -26,7 +26,8 @@ export const generateFinalHtmlStr = (
   disableOtherColor: boolean,
   hideEmptyAvatars: boolean,
   hideAllAvatars: boolean,
-  narrationCharacter: string | null,
+  narrationCharacters: string[] | string | null,
+  hideAvatarCharacters: string[],
   enableSentenceSpacing: boolean,
   insertedBlocks: Record<string, any[]>,
   mergeTabs: Set<string>,
@@ -43,8 +44,11 @@ export const generateFinalHtmlStr = (
   showLogDivider: boolean = false,
   illustrations: Illustration[] = [],
   originalLogs: LogEntry[] = [],
-collapseChat: boolean = true
+  collapseChat: boolean = true
 ) => {
+  const narrationIds = Array.isArray(narrationCharacters) ? narrationCharacters : (narrationCharacters ? [narrationCharacters] : []);
+  const isNarrationChar = (charId: string) => narrationIds.includes(charId);
+  const hiddenAvatarIds = new Set(hideAvatarCharacters || []);
   const isDark = theme === 'dark';
   const cleanStyle = (styleStr: string) => {
     if (!styleStr) return '';
@@ -135,7 +139,7 @@ collapseChat: boolean = true
       return forceClass ? ` class="${forceClass}"` : '';
     }
     const isMainTab = (tabSettings[logEntry.tabId]?.format || 'main') === 'main';
-    const isNarrationCharacterTag = logEntry.charId === narrationCharacter;
+    const isNarrationCharacterTag = isNarrationChar(logEntry.charId);
     const isCommandFlag = logEntry.isCommand;
 
     let attrs = ` d-t="${shortenId(logEntry.tabId)}" d-c="${shortenId(logEntry.charId)}"`;
@@ -170,12 +174,12 @@ collapseChat: boolean = true
     ).join('');
     
     let charsArray = Array.from(activeChars.values());
-    if (narrationCharacter) {
+    if (narrationIds.length > 0) {
       charsArray = [
         {
           id: '__NARRATION__',
           name: '나레이션',
-          color: charSettings[narrationCharacter]?.color || '#000000'
+          color: charSettings[narrationIds[0]]?.color || '#000000'
         },
         ...charsArray
       ];
@@ -377,7 +381,7 @@ collapseChat: boolean = true
       ctx.font = `bold ${nameSizePixel}px ${fw}`;
       let mw = 0;
       for (const log of filteredLogs) {
-        if (log.charId !== narrationCharacter && !log.isContinuation) {
+        if (!isNarrationChar(log.charId) && !log.isContinuation) {
           const w = ctx.measureText(log.name + ':').width;
           if (w > mw) mw = w;
         }
@@ -590,7 +594,6 @@ collapseChat: boolean = true
             mergeTabs.has(format) && 
             mergeTabs.has(prevFormat) &&
             prevLogForContinuation.name === mappedLog.name && 
-            prevLogForContinuation.iconUrl === mappedLog.iconUrl &&
             prevLogForContinuation.tab === mappedLog.tab && 
             !mappedLog.isCommand && 
             !prevLogForContinuation.isCommand &&
@@ -697,7 +700,7 @@ collapseChat: boolean = true
       }
       const tabSet = tabSettings[l.tabId];
       const formatVal = tabSet?.format || 'main';
-      if (l.charId === narrationCharacter && formatVal === 'main') {
+      if (isNarrationChar(l.charId) && formatVal === 'main') {
         return 'narration';
       }
       return formatVal;
@@ -783,7 +786,7 @@ collapseChat: boolean = true
       }
       const tabSet = tabSettings[l.tabId];
       const formatVal = tabSet?.format || 'main';
-      if (l.charId === narrationCharacter && formatVal === 'main') {
+      if (isNarrationChar(l.charId) && formatVal === 'main') {
         return 'narration';
       }
       return formatVal;
@@ -815,9 +818,9 @@ collapseChat: boolean = true
       ? (tabSettings[previousChunkForCollapse.logs[0].tabId]?.format || 'main')
       : null;
 
-    if (collapseChat && previousFormatForCollapse === 'other' && format !== 'other') {
-  html += '</div></details>';
-}
+    if (previousFormatForCollapse === 'other' && format !== 'other') {
+      html += '</div></details>';
+    }
 
     if (format === 'other' && previousFormatForCollapse !== 'other') {
       // 연속된 잡담 구간에 포함된 로그 수를 미리 계산합니다.
@@ -830,13 +833,11 @@ collapseChat: boolean = true
         chatLineCount += candidateChunk.logs.length;
       }
 
-      if (collapseChat) {
-        html += `
-          <details class="chat-collapse">
-            <summary>잡담 (${chatLineCount}줄)</summary>
-            <div class="chat-collapse-content">
-        `;
-      }
+      html += `
+        <details class="chat-collapse" ${collapseChat ? "" : "open"}>
+          <summary>잡담 (${chatLineCount}줄)</summary>
+          <div class="chat-collapse-content">
+      `;
     }
 
     // 💡 다이스 로그 등에서 현재 표정(iconUrl)이 비어있다면, 거슬러 올라가 가장 마지막 표정을 찾습니다!
@@ -856,9 +857,11 @@ collapseChat: boolean = true
         if (found) break;
       }
     }
-    const img = recentIconUrl || char?.imageUrl;
+    // 이미지 숨김 대상으로 지정된 화자는 모든 출력 형식에서 이미지 URL 자체를 비웁니다.
+    const isAvatarHidden = hiddenAvatarIds.has(log.charId);
+    const img = isAvatarHidden ? '' : (recentIconUrl || char?.imageUrl);
     
-    const hideAvatar = hideEmptyAvatars;
+    const hideAvatar = hideEmptyAvatars || isAvatarHidden;
 
     const prevChunk = chunkIdx > 0 ? chunks[chunkIdx - 1] : null;
     let nextVisibleChunkIdx = chunkIdx + 1;
@@ -886,9 +889,9 @@ collapseChat: boolean = true
     const isSectionEndOuter = !nextVisibleChunk || isNextSameTab === false || hasBlockAfter;
     const mergeWithNextOuter = shouldMergeStyle && isNextSameTab && !isSectionEndOuter;
 
-    const isNarration = log.charId === narrationCharacter && format === 'main';
-    const isPrevNarration = prevVisibleChunk ? (!hasBlockBefore && prevVisibleChunk.logs[0].charId === narrationCharacter && (tabSettings[prevVisibleChunk.logs[0].tabId]?.format || 'main') === 'main') : false;
-    const isNextNarration = nextVisibleChunk ? (!hasBlockAfter && nextVisibleChunk.logs[0].charId === narrationCharacter && (tabSettings[nextVisibleChunk.logs[0].tabId]?.format || 'main') === 'main') : false;
+    const isNarration = isNarrationChar(log.charId) && format === 'main';
+    const isPrevNarration = prevVisibleChunk ? (!hasBlockBefore && isNarrationChar(prevVisibleChunk.logs[0].charId) && (tabSettings[prevVisibleChunk.logs[0].tabId]?.format || 'main') === 'main') : false;
+    const isNextNarration = nextVisibleChunk ? (!hasBlockAfter && isNarrationChar(nextVisibleChunk.logs[0].charId) && (tabSettings[nextVisibleChunk.logs[0].tabId]?.format || 'main') === 'main') : false;
 
     // Calculate divider presence and visual properties early
     const hasDividerBelow = nextVisibleChunk ? getHasDividerBetween(chunk, nextVisibleChunk) : false;
@@ -905,7 +908,7 @@ collapseChat: boolean = true
       } else {
         const tabSetVal = tabSettings[prevLogObj.tabId];
         const formatVal = tabSetVal?.format || 'main';
-        if (prevLogObj.charId === narrationCharacter && formatVal === 'main') {
+        if (isNarrationChar(prevLogObj.charId) && formatVal === 'main') {
           prevFormat = 'narration';
         } else {
           prevFormat = formatVal;
@@ -923,7 +926,7 @@ collapseChat: boolean = true
       } else {
         const tabSetVal = tabSettings[nextLogObj.tabId];
         const formatVal = tabSetVal?.format || 'main';
-        if (nextLogObj.charId === narrationCharacter && formatVal === 'main') {
+        if (isNarrationChar(nextLogObj.charId) && formatVal === 'main') {
           nextFormat = 'narration';
         } else {
           nextFormat = formatVal;
@@ -1023,7 +1026,7 @@ collapseChat: boolean = true
     let dividerHtml = '';
     if (hasDividerBelow) {
       const isMainTab = format === 'main' ? 'true' : 'false';
-      const isNarrationCharacterTag = log.charId === narrationCharacter ? 'true' : 'false';
+      const isNarrationCharacterTag = isNarrationChar(log.charId) ? 'true' : 'false';
       const isCommandFlag = log.isCommand ? 'true' : 'false';
       
       let divAttrs = '';
@@ -1315,7 +1318,7 @@ collapseChat: boolean = true
                 </div>
               </div>`;
           } else {
-            const avatarHtml = `<div style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            const avatarHtml = `<div style="${cleanStyle(solidAwStyle)}">${!hiddenAvatarIds.has(log.charId) && img ? `<img src="${img}" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
             const wrapperStyle = `display:flex;gap:${gapSize}px;padding:${paddingVertical}px ${paddingHorizontal}px;align-items:flex-start;`;
             html += `
               <div style="${cleanStyle(wrapperStyle)}">
@@ -1409,14 +1412,14 @@ collapseChat: boolean = true
           if (hideAllAvatars) {
             html += `<div class="s-r no-avatar-grid" style="${st}"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${diceColorHtml}</div></div></div>`;
           } else {
-            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${!hiddenAvatarIds.has(log.charId) && img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
             html += `<div class="s-r" style="${st}">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${diceColorHtml}</div></div></div>`;
           }
         } else {
           if (hideAllAvatars) {
             html += `<div class="m-r no-avatar-grid"><span class="m-nm ${charClass}">${log.name}:</span><div class="m-b"><div class="m-c">${diceColorHtml}</div></div></div>`;
           } else {
-            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
+            const avatarHtml = `<div class="m-aw" style="${cleanStyle(solidAwStyle)}">${!hiddenAvatarIds.has(log.charId) && img ? `<img src="${img}" class="m-a" style="${cleanStyle(customImgStyle)}" />` : ''}</div>`;
             html += `<div class="m-r">${avatarHtml}<div class="m-b"><span class="m-nm ${charClass}">${log.name}</span><div class="m-c">${diceColorHtml}</div></div></div>`;
           }
         }
@@ -1436,7 +1439,7 @@ collapseChat: boolean = true
   const lastFormatForCollapse = lastChunkForCollapse
     ? (tabSettings[lastChunkForCollapse.logs[0].tabId]?.format || 'main')
     : null;
-  if (collapseChat && lastFormatForCollapse === 'other') {
+  if (lastFormatForCollapse === 'other') {
     html += '</div></details>';
   }
 

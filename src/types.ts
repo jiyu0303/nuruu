@@ -19,7 +19,15 @@ export interface LogEntry {
   tabOverride?: string;
   width?: string;
   align?: 'left' | 'center' | 'right';
-  iconUrl?: string; 
+  iconUrl?: string;
+  // 시스템 서식으로 전환하기 전의 발언자 정보를 보관해 원상 복구할 수 있도록 합니다.
+  systemOriginal?: {
+    charId: string;
+    name: string;
+    color: string;
+    iconUrl?: string;
+    isCommand: boolean;
+  };
 }
 
 export interface CharSetting {

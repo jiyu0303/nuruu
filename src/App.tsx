@@ -640,7 +640,8 @@ const [isLocked, setIsLocked] = useState(true);
   const [hideEmptyAvatars, setHideEmptyAvatars] = useLocalStorage<boolean>('ccfolia_hideEmptyAvatars', false, undefined, undefined, rememberSettings);
   const [hideAllAvatars, setHideAllAvatars] = useLocalStorage<boolean>('ccfolia_hideAllAvatars', false, undefined, undefined, rememberSettings);
   const [enableSentenceSpacing, setEnableSentenceSpacing] = useLocalStorage<boolean>('ccfolia_enableSentenceSpacing', false, undefined, undefined, rememberSettings);
-  const [narrationCharacter, setNarrationCharacter] = useState<string | null>(null);
+  const [narrationCharacters, setNarrationCharacters] = useState<string[]>([]);
+  const [hideAvatarCharacters, setHideAvatarCharacters] = useState<string[]>([]);
   const [showLogDivider, setShowLogDivider] = useLocalStorage<boolean>('ccfolia_showLogDivider', false, undefined, undefined, rememberSettings);
   const [imageInputIdx, setImageInputIdx] = useState<string | null>(null);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
@@ -1032,7 +1033,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       mergeTabStyles: Array.from(mergeTabStyles),
       hideEmptyAvatars,
       hideAllAvatars,
-      narrationCharacter,
+      narrationCharacters,
+      hideAvatarCharacters,
       enableSentenceSpacing,
       showLogDivider,
       illustrations,
@@ -1133,7 +1135,9 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     if (state.mergeTabStyles) setMergeTabStyles(new Set(state.mergeTabStyles));
     if (state.hideEmptyAvatars !== undefined) setHideEmptyAvatars(state.hideEmptyAvatars);
     if (state.hideAllAvatars !== undefined) setHideAllAvatars(state.hideAllAvatars);
-    if (state.narrationCharacter !== undefined) setNarrationCharacter(state.narrationCharacter);
+    if (state.narrationCharacters !== undefined) setNarrationCharacters(Array.isArray(state.narrationCharacters) ? state.narrationCharacters : []);
+    else if (state.narrationCharacter !== undefined) setNarrationCharacters(state.narrationCharacter ? [state.narrationCharacter] : []);
+    if (state.hideAvatarCharacters !== undefined) setHideAvatarCharacters(Array.isArray(state.hideAvatarCharacters) ? state.hideAvatarCharacters : []);
     if (state.enableSentenceSpacing !== undefined) setEnableSentenceSpacing(state.enableSentenceSpacing);
     if (state.showLogDivider !== undefined) setShowLogDivider(state.showLogDivider);
   };
@@ -1169,7 +1173,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         setMergeTabStyles(new Set(state.mergeTabStyles || ['secret']));
         setHideEmptyAvatars(state.hideEmptyAvatars || false);
         setHideAllAvatars(state.hideAllAvatars || false);
-        setNarrationCharacter(state.narrationCharacter || null);
+        setNarrationCharacters(Array.isArray(state.narrationCharacters) ? state.narrationCharacters : (state.narrationCharacter ? [state.narrationCharacter] : []));
+        setHideAvatarCharacters(Array.isArray(state.hideAvatarCharacters) ? state.hideAvatarCharacters : []);
         setEnableSentenceSpacing(state.enableSentenceSpacing || false);
         setShowLogDivider(state.showLogDivider || false);
         saveToHistory(state);
@@ -1191,6 +1196,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         setMergeTabStyles(new Set(['secret']));
         setHideEmptyAvatars(false);
         setHideAllAvatars(false);
+        setNarrationCharacters([]);
+        setHideAvatarCharacters([]);
         setEnableSentenceSpacing(false);
         setShowLogDivider(false);
         setCharSortMode('appearance');
@@ -1502,7 +1509,9 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       if (json.mergeTabStyles) setMergeTabStyles(new Set(json.mergeTabStyles));
       if (json.hideEmptyAvatars !== undefined) setHideEmptyAvatars(json.hideEmptyAvatars);
       if (json.hideAllAvatars !== undefined) setHideAllAvatars(json.hideAllAvatars);
-      if (json.narrationCharacter !== undefined) setNarrationCharacter(json.narrationCharacter);
+      if (json.narrationCharacters !== undefined) setNarrationCharacters(Array.isArray(json.narrationCharacters) ? json.narrationCharacters : []);
+      else if (json.narrationCharacter !== undefined) setNarrationCharacters(json.narrationCharacter ? [json.narrationCharacter] : []);
+      if (json.hideAvatarCharacters !== undefined) setHideAvatarCharacters(Array.isArray(json.hideAvatarCharacters) ? json.hideAvatarCharacters : []);
 
       saveToHistory(json);
       setJsonFileName(file.name);
@@ -1521,7 +1530,9 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     if (saveOptions.chars) {
       data.charSettings = charSettings;
       data.charOrder = charOrder;
-      data.narrationCharacter = narrationCharacter;
+      data.narrationCharacters = narrationCharacters;
+      data.narrationCharacter = narrationCharacters[0] || null;
+      data.hideAvatarCharacters = hideAvatarCharacters;
       data.hideEmptyAvatars = hideEmptyAvatars;
       data.hideAllAvatars = hideAllAvatars;
     }
@@ -1869,7 +1880,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     let mw = 0;
     for (const item of displayItems) {
       const log = item.log;
-      if (log.charId !== narrationCharacter && !log.isContinuation) {
+      if (!narrationCharacters.includes(log.charId) && !log.isContinuation) {
          if (tabSettings[log.tabId]?.visible !== false && charSettings[log.charId]?.visible !== false) {
            const w = ctx.measureText(log.name + ':').width;
            if (w > mw) mw = w;
@@ -1878,7 +1889,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     }
     
     return Math.min(Math.max(48, Math.ceil(mw + 8)), 120);
-  }, [displayItems, textFontSize, fontFamily, narrationCharacter, hideAllAvatars, tabSettings, charSettings]);
+  }, [displayItems, textFontSize, fontFamily, narrationCharacters, hideAllAvatars, tabSettings, charSettings]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -2205,19 +2216,40 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
   charId: string;
   tabId: string;
   iconUrl: string;
+  isSystem?: boolean;
 }) => {
   setLogs((prevLogs) => {
     const newChar = charSettings[changes.charId];
 
-    const updateLog = (log: (typeof prevLogs)[number]) => ({
-      ...log,
-      content: changes.content,
-      charId: changes.charId,
-      name: newChar?.name ?? log.name,
-      color: newChar?.color ?? log.color,
-      tabId: changes.tabId,
-      iconUrl: changes.iconUrl,
-    });
+    const updateLog = (log: (typeof prevLogs)[number]) => {
+      // 시스템 서식으로 처음 전환할 때 원래 발언자 정보를 보관합니다.
+      const original = log.systemOriginal || (
+        changes.isSystem && log.name !== 'system'
+          ? {
+              charId: log.charId,
+              name: log.name,
+              color: log.color,
+              iconUrl: log.iconUrl,
+              isCommand: log.isCommand,
+            }
+          : undefined
+      );
+
+      // 시스템 서식을 해제하면 보관해 둔 발언자 정보로 복구합니다.
+      const restoreOriginal = !changes.isSystem && log.name === 'system' && !!original;
+
+      return {
+        ...log,
+        content: changes.content,
+        charId: changes.isSystem ? 'system' : (restoreOriginal ? original!.charId : changes.charId),
+        name: changes.isSystem ? 'system' : (restoreOriginal ? original!.name : (newChar?.name ?? log.name)),
+        color: changes.isSystem ? '#EEEEEE' : (restoreOriginal ? original!.color : (newChar?.color ?? log.color)),
+        tabId: changes.tabId,
+        iconUrl: changes.isSystem ? '' : (restoreOriginal ? (original!.iconUrl || '') : changes.iconUrl),
+        isCommand: changes.isSystem ? true : (restoreOriginal ? original!.isCommand : log.isCommand),
+        systemOriginal: changes.isSystem ? original : (restoreOriginal ? undefined : log.systemOriginal),
+      };
+    };
 
     let nextLogs;
 
@@ -2395,7 +2427,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       disableOtherColor,
       hideEmptyAvatars,
       hideAllAvatars,
-      narrationCharacter,
+      narrationCharacters,
+      hideAvatarCharacters,
       enableSentenceSpacing,
       insertedBlocks,
       mergeTabs,
@@ -2475,7 +2508,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         disableOtherColor,
         hideEmptyAvatars,
         hideAllAvatars,
-        narrationCharacter,
+        narrationCharacters,
+        hideAvatarCharacters,
         enableSentenceSpacing,
         insertedBlocks,
         mergeTabs,
@@ -2491,7 +2525,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         avatarSizeValue,
         showLogDivider,
         illustrations,
-        logs
+        logs,
+        collapseChat
       );
       
       const finalName = s.name ? `${fileName}_${s.name}` : `${fileName}_section_${i + 1}`;
@@ -2547,7 +2582,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       tabSettings,
       hideEmptyAvatars,
       hideAllAvatars,
-      narrationCharacter,
+      narrationCharacters,
+      hideAvatarCharacters,
       enableSentenceSpacing,
       lineHeight,
       letterSpacing,
@@ -3054,52 +3090,25 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
               >
                 <Section>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl  relative h-11" ref={narrationDropdownRef}>
-                      <span className="text-[11px] font-bold text-white/70">나레이션 캐릭터</span>
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl relative min-h-11" ref={narrationDropdownRef}>
+                      <span className="text-[11px] font-bold text-white/70">나레이션 화자</span>
                       <div className="relative">
-                        <button
-                          onClick={() => setIsNarrationDropdownOpen(!isNarrationDropdownOpen)}
-                          className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-lg text-[10px] text-white/80 px-2 py-1 outline-none hover:border-white/20 transition-colors"
-                        >
-                          <span className="max-w-[100px] truncate">{narrationCharacter ? charSettings[narrationCharacter]?.name || narrationCharacter : '선택 안 함'}</span>
+                        <button onClick={() => setIsNarrationDropdownOpen(!isNarrationDropdownOpen)} className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-lg text-[10px] text-white/80 px-2 py-1 outline-none hover:border-white/20 transition-colors">
+                          <span className="max-w-[150px] truncate">{narrationCharacters.length ? narrationCharacters.map(id => charSettings[id]?.name || id).join(', ') : '선택 안 함'}</span>
                           <ChevronDown className="w-3 h-3 opacity-50" />
                         </button>
-                        
                         {isNarrationDropdownOpen && (
-                          <div className="absolute right-0 top-full mt-1 w-40 bg-[#222] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+                          <div className="absolute right-0 top-full mt-1 w-52 bg-[#222] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
                             <div className="max-h-[50vh] overflow-y-auto custom-scrollbar p-1">
-                              <button
-                                onClick={() => {
-                                  setNarrationCharacter(null);
-                                  saveToHistory({ narrationCharacter: null });
-                                  setIsNarrationDropdownOpen(false);
-                                }}
-                                className={cn(
-                                  "w-full text-left px-3 py-2 text-[11px] rounded-lg transition-colors",
-                                  !narrationCharacter ? "bg-[#499bc8] text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white"
-                                )}
-                              >
-                                선택 안 함
-                              </button>
+                              <button onClick={() => { setNarrationCharacters([]); saveToHistory({ narrationCharacters: [], narrationCharacter: null }); }} className="w-full text-left px-3 py-2 text-[11px] rounded-lg text-white/60 hover:bg-white/5">선택 해제</button>
                               {Object.keys(charSettings).map(charId => {
                                 const char = charSettings[charId];
                                 if (!char) return null;
-                                return (
-                                  <button
-                                    key={charId}
-                                    onClick={() => {
-                                      setNarrationCharacter(charId);
-                                      saveToHistory({ narrationCharacter: charId });
-                                      setIsNarrationDropdownOpen(false);
-                                    }}
-                                    className={cn(
-                                      "w-full text-left px-3 py-2 text-[11px] rounded-lg transition-colors truncate",
-                                      narrationCharacter === charId ? "bg-[#499bc8] text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white"
-                                    )}
-                                  >
-                                    {char.name}
-                                  </button>
-                                );
+                                const checked = narrationCharacters.includes(charId);
+                                return <label key={charId} className={cn("flex items-center gap-2 w-full px-3 py-2 text-[11px] rounded-lg cursor-pointer", checked ? "bg-[#499bc8] text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white")}>
+                                  <input type="checkbox" checked={checked} onChange={(e) => { const next = e.target.checked ? [...narrationCharacters, charId] : narrationCharacters.filter(id => id !== charId); setNarrationCharacters(next); saveToHistory({ narrationCharacters: next, narrationCharacter: next[0] || null }); }} className="accent-[#499bc8]" />
+                                  <span className="truncate">{char.name}</span>
+                                </label>;
                               })}
                             </div>
                           </div>
@@ -3107,7 +3116,22 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                       </div>
                     </div>
 
-                    {narrationCharacter && (
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl relative min-h-11">
+                      <span className="text-[11px] font-bold text-white/70">이미지 없이 출력할 화자</span>
+                      <div className="relative">
+                        <details className="relative">
+                          <summary className="list-none cursor-pointer flex items-center gap-2 bg-black/20 border border-white/10 rounded-lg text-[10px] text-white/80 px-2 py-1 hover:border-white/20">
+                            <span className="max-w-[150px] truncate">{hideAvatarCharacters.length ? hideAvatarCharacters.map(id => charSettings[id]?.name || id).join(', ') : '선택 안 함'}</span><ChevronDown className="w-3 h-3 opacity-50" />
+                          </summary>
+                          <div className="absolute right-0 top-full mt-1 w-52 bg-[#222] border border-white/10 rounded-xl shadow-xl z-50 max-h-[50vh] overflow-y-auto p-1">
+                            <button onClick={() => { setHideAvatarCharacters([]); saveToHistory({ hideAvatarCharacters: [] }); }} className="w-full text-left px-3 py-2 text-[11px] rounded-lg text-white/60 hover:bg-white/5">선택 해제</button>
+                            {Object.keys(charSettings).map(charId => { const char = charSettings[charId]; if (!char) return null; const checked = hideAvatarCharacters.includes(charId); return <label key={charId} className={cn("flex items-center gap-2 w-full px-3 py-2 text-[11px] rounded-lg cursor-pointer", checked ? "bg-[#499bc8] text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white")}><input type="checkbox" checked={checked} onChange={(e) => { const next = e.target.checked ? [...hideAvatarCharacters, charId] : hideAvatarCharacters.filter(id => id !== charId); setHideAvatarCharacters(next); saveToHistory({ hideAvatarCharacters: next }); }} className="accent-[#499bc8]" /><span className="truncate">{char.name}</span></label>; })}
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+
+                    {narrationCharacters.length > 0 && (
                       <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl  h-11">
                         <span className="text-[11px] font-bold text-white/70">나레이션 문단 자동 나누기</span>
                         <Toggle 
@@ -4637,8 +4661,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                         const stableId = log.id.startsWith('merged:') ? log.id.split(',').pop()! : log.id;
                         const originalLogIndex = logs.findIndex((l: any) => l.id === stableId);
                         
-                        const isPrevNarration = idx > 0 && mergedLogs[idx - 1].charId === narrationCharacter && (tabSettings[mergedLogs[idx - 1].tabId]?.format || 'main') === 'main';
-                        const isNextNarration = idx < mergedLogs.length - 1 && mergedLogs[idx + 1].charId === narrationCharacter && (tabSettings[mergedLogs[idx + 1].tabId]?.format || 'main') === 'main';
+                        const isPrevNarration = idx > 0 && narrationCharacters.includes(mergedLogs[idx - 1].charId) && (tabSettings[mergedLogs[idx - 1].tabId]?.format || 'main') === 'main';
+                        const isNextNarration = idx < mergedLogs.length - 1 && narrationCharacters.includes(mergedLogs[idx + 1].charId) && (tabSettings[mergedLogs[idx + 1].tabId]?.format || 'main') === 'main';
 
                         return (
                           <div
@@ -4683,6 +4707,8 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                               onChangeExpression={onChangeExpression}
                               onChangeTab={onChangeTab}
                               charSettings={charSettings}
+                              narrationCharacters={narrationCharacters}
+                              hideAvatarCharacters={hideAvatarCharacters}
                               tabOrder={tabOrder}
                               mergedLogsCount={mergedLogs.length}
                               isPrevSameTab={isPrevSameTab}

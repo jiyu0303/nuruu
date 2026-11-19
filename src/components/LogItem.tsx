@@ -33,7 +33,12 @@ export const LogItem = React.memo(({
   onEditLog,
   onDeleteLog,
   insertLogBlock,
+  onChangeSpeaker,
+  onChangeTab,
+  onChangeExpression,
   charSettings: charSettingsFromProps,
+  narrationCharacters: narrationCharactersFromProps,
+  hideAvatarCharacters: hideAvatarCharactersFromProps,
   tabOrder,
   splitPointsArray,
   isPrevSameTab,
@@ -51,13 +56,16 @@ export const LogItem = React.memo(({
   const { 
     theme, disableOtherColor, fontSize, textFontSize,
     mergeTabStyles, showTabNames, hideEmptyAvatars, hideAllAvatars,
-    narrationCharacter, charSettings: charSettingsFromContext, tabSettings,
+    narrationCharacter, narrationCharacters: narrationCharactersFromContext = [], hideAvatarCharacters: hideAvatarCharactersFromContext = [], charSettings: charSettingsFromContext, tabSettings,
     enableSentenceSpacing,
     lineHeight = 1.6, letterSpacing = 0, blockSpacing = 2, contentPadding = 15.5, avatarSizeValue = 46,
     showLogDivider = false
   } = useSettings();
 
   const charSettings = charSettingsFromProps || charSettingsFromContext;
+  // 부모(App)의 최신 선택 상태를 직접 전달받아 미리보기에 즉시 반영합니다.
+  const narrationCharacters = narrationCharactersFromProps ?? narrationCharactersFromContext;
+  const hideAvatarCharacters = hideAvatarCharactersFromProps ?? hideAvatarCharactersFromContext;
 
   let effectiveBlockSpacing = blockSpacing;
   let basePaddingVertical = 12;
@@ -70,19 +78,11 @@ export const LogItem = React.memo(({
   const char = charSettings[log.charId] || { id: log.charId, name: log.name, color: log.color, visible: true, imageUrl: '' };
 
   const isEditing = editingLogId === log.id;
-  const safeLogContent =
-  typeof log.content === 'string'
-    ? log.content
-    : typeof (log.content as any)?.content === 'string'
-      ? (log.content as any).content
-      : '';
-
-const [editContent, setEditContent] = useState(
-  safeLogContent.replace(/<br\s*\/?>/gi, '\n')
-);
-  const [editCharId, setEditCharId] = useState(log.charId);
+  const [editContent, setEditContent] = useState(log.content.replace(/<br\s*\/?>/gi, '\n'));
+  const [editCharId, setEditCharId] = useState(log.systemOriginal?.charId || log.charId);
   const [editTabId, setEditTabId] = useState(log.tabId);
-  const [editIconUrl, setEditIconUrl] = useState(log.iconUrl || ''); 
+  const [editIconUrl, setEditIconUrl] = useState(log.systemOriginal?.iconUrl || log.iconUrl || '');
+  const [editAsSystem, setEditAsSystem] = useState(log.name === 'system' && !!log.isCommand);
   const [isHoveringButton, setIsHoveringButton] = useState(false);
   const orderedTabs = useMemo(() => {
     if (tabOrder && tabOrder.length > 0) {
@@ -169,9 +169,10 @@ const [editContent, setEditContent] = useState(
   useEffect(() => {
     if (isEditing) {
       setEditContent(log.content.replace(/<br\s*\/?>/gi, '\n'));
-      setEditCharId(log.charId);
+      setEditCharId(log.systemOriginal?.charId || log.charId);
       setEditTabId(log.tabId);
-      setEditIconUrl(log.iconUrl || ''); // 👈 추가!
+      setEditIconUrl(log.systemOriginal?.iconUrl || log.iconUrl || '');
+      setEditAsSystem(log.name === 'system' && !!log.isCommand);
     }
   }, [isEditing, log.id, log.content, log.charId, log.tabId, log.iconUrl]); //
 
@@ -182,22 +183,21 @@ const [editContent, setEditContent] = useState(
     setEditingLogId(null);
   };
 
-const handleConfirm = () => {
-  const trimmed = editContent.trim();
-
-  if (!trimmed) {
-    onDeleteLog(log.id);
-  } else {
-    onEditLog(log.id, {
-      content: editContent,
-      charId: editCharId,
-      tabId: editTabId,
-      iconUrl: editIconUrl,
-    });
-  }
-
-  setEditingLogId(null);
-};
+  const handleConfirm = () => {
+    const trimmed = editContent.trim();
+    if (!trimmed) {
+      onDeleteLog(log.id);
+    } else {
+      onEditLog(log.id, {
+        content: editContent,
+        charId: editCharId,
+        tabId: editTabId,
+        iconUrl: editIconUrl,
+        isSystem: editAsSystem,
+      });
+    }
+    setEditingLogId(null);
+  };
 
   // Define how blocks are rendered
   const renderBlocks = (blocks: any[], logId: string, isTopLevel: boolean = false) => {
@@ -401,7 +401,9 @@ const handleConfirm = () => {
   img = img || char.imageUrl;
   const isSecret = format === 'secret';
   const tabColor = tabSet?.color || '#ffd400';
-  const isNarration = log.charId === narrationCharacter && format === 'main';
+  const isNarrationChar = (charId: string) => (Array.isArray(narrationCharacters) && narrationCharacters.includes(charId)) || charId === narrationCharacter;
+  const isNarration = isNarrationChar(log.charId) && format === 'main';
+  const hideThisAvatar = Array.isArray(hideAvatarCharacters) && hideAvatarCharacters.includes(log.charId);
 
   const narrationMargin = Math.floor(effectiveBlockSpacing * 1.2 + lineHeight * 6);
 
@@ -534,7 +536,7 @@ const handleConfirm = () => {
       }
       const tabSet = tabSettings[l.tabId];
       const formatVal = tabSet?.format || 'main';
-      if (l.charId === narrationCharacter && formatVal === 'main') {
+      if (isNarrationChar(l.charId) && formatVal === 'main') {
         return 'narration';
       }
       return formatVal;
@@ -609,11 +611,11 @@ const handleConfirm = () => {
 
   const hasDividerBelow = useMemo(() => {
     return getHasDividerBelow(idx);
-  }, [idx, mergedLogsCount, mergedLogs, tabSettings, narrationCharacter, showTabNames, mergeTabStyles, showLogDivider]);
+  }, [idx, mergedLogsCount, mergedLogs, tabSettings, narrationCharacter, narrationCharacters, showTabNames, mergeTabStyles, showLogDivider]);
 
   const hasDividerAbove = useMemo(() => {
     return idx > 0 ? getHasDividerBelow(idx - 1) : false;
-  }, [idx, mergedLogsCount, mergedLogs, tabSettings, narrationCharacter, showTabNames, mergeTabStyles, showLogDivider]);
+  }, [idx, mergedLogsCount, mergedLogs, tabSettings, narrationCharacter, narrationCharacters, showTabNames, mergeTabStyles, showLogDivider]);
 
   const prevLog = idx > 0 ? mergedLogs[idx - 1] : null;
   const prevFormat = useMemo(() => {
@@ -621,11 +623,11 @@ const handleConfirm = () => {
     if (prevLog.isCommand) return 'command';
     const tabSet = tabSettings[prevLog.tabId];
     const formatVal = tabSet?.format || 'main';
-    if (prevLog.charId === narrationCharacter && formatVal === 'main') {
+    if (isNarrationChar(prevLog.charId) && formatVal === 'main') {
       return 'narration';
     }
     return formatVal;
-  }, [prevLog, tabSettings, narrationCharacter]);
+  }, [prevLog, tabSettings, narrationCharacter, narrationCharacters]);
 
   const nextLog = idx < mergedLogsCount - 1 ? mergedLogs[idx + 1] : null;
   const nextFormat = useMemo(() => {
@@ -633,11 +635,11 @@ const handleConfirm = () => {
     if (nextLog.isCommand) return 'command';
     const tabSet = tabSettings[nextLog.tabId];
     const formatVal = tabSet?.format || 'main';
-    if (nextLog.charId === narrationCharacter && formatVal === 'main') {
+    if (isNarrationChar(nextLog.charId) && formatVal === 'main') {
       return 'narration';
     }
     return formatVal;
-  }, [nextLog, tabSettings, narrationCharacter]);
+  }, [nextLog, tabSettings, narrationCharacter, narrationCharacters]);
 
   const isSpecialDividerBelow = useMemo(() => {
     if (!nextLog) return false;
@@ -1056,7 +1058,27 @@ const handleConfirm = () => {
                         theme={theme}
                       />
                     </div>
-                    {charSettings[editCharId]?.expressions && charSettings[editCharId].expressions.length > 0 && (
+                    {!editAsSystem && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAsSystem(true)}
+                        className="px-2 py-1 rounded-md border border-[#4799c7]/50 bg-[#4799c7]/10 text-[#4799c7] hover:bg-[#4799c7]/20 text-[10px] font-bold whitespace-nowrap transition-colors"
+                        title="이 로그를 나레이션(시스템) 서식으로 전환"
+                      >
+                        나레이션으로 전환
+                      </button>
+                    )}
+                    {editAsSystem && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAsSystem(false)}
+                        className="px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-[10px] font-bold whitespace-nowrap transition-colors"
+                        title="나레이션(시스템) 서식을 해제하고 원래 발언자로 되돌리기"
+                      >
+                        서식 되돌리기
+                      </button>
+                    )}
+                    {charSettings[editCharId]?.expressions && charSettings[editCharId].expressions.length > 0 && !editAsSystem && (
                       <div className="flex items-center gap-1.5">
                         <span className={cn("text-[10px] whitespace-nowrap font-medium shrink-0", theme === 'dark' ? "text-white/40" : "text-stone-500")}>표정:</span>
                         <SearchableSelect
@@ -1110,7 +1132,7 @@ const handleConfirm = () => {
                 />
               </div>
             </div>
-          ) : format === 'other' ? (
+          ) : (format === 'other' && !(log.isCommand && log.name === 'system')) ? (
             (() => {
               // 잡담 탭의 기본 텍스트 색상
               let chatColor = theme === 'dark' ? '#AAAAAA' : '#777777';
@@ -1214,7 +1236,7 @@ const handleConfirm = () => {
                       </>
                     ) : (
                       <>
-                        {log.isContinuation ? (
+                        {log.isContinuation || hideThisAvatar ? (
                           <div style={{ width: `${avatarSize}px`, flexShrink: 0 }} />
                         ) : (
                           <LogAvatar 
@@ -1324,7 +1346,7 @@ const handleConfirm = () => {
                 </>
               ) : (
                 <>
-                  {log.isContinuation ? (
+                  {log.isContinuation || hideThisAvatar ? (
                     <div style={{ width: `${avatarSize}px`, flexShrink: 0 }} />
                   ) : (
                     <LogAvatar 
