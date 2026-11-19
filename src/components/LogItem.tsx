@@ -1085,7 +1085,7 @@ export const LogItem = React.memo(({
                         onClick={() => setEditAsSystem(true)}
                         className="ml-auto px-2 py-1 rounded-md border border-[#4799c7]/50 bg-[#4799c7]/10 text-[#4799c7] hover:bg-[#4799c7]/20 text-[10px] font-bold whitespace-nowrap transition-colors"
                       >
-                        나레이션(시스템)으로 전환
+                        나레이션으로 전환
                       </button>
                     ) : (
                       <button
@@ -1093,7 +1093,7 @@ export const LogItem = React.memo(({
                         onClick={() => setEditAsSystem(false)}
                         className="ml-auto px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-[10px] font-bold whitespace-nowrap transition-colors"
                       >
-                        원래 발언자 서식으로 되돌리기
+                        서식 되돌리기
                       </button>
                     )}
                     
