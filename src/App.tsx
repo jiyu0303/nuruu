@@ -68,7 +68,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { twMerge } from 'tailwind-merge';
 import { clsx, type ClassValue } from 'clsx';
 import { TabFormat, LogEntry, CharSetting, TabSetting, CharacterLibraryItem, Illustration } from './types';
-import { parseLogFile } from './parser';
+import { parseLogFile, parseCcfoliaJsonFile } from './parser';
 import { cn, r, rgbToHex, getFileNameFromUrl } from './utils';
 import { extractOldFormat, InsertedBlock, migrateToInsertedBlocks } from './utils/migration';
 import { Toggle } from './components/Toggle';
@@ -465,6 +465,7 @@ const [isLocked, setIsLocked] = useState(true);
   const [passwordInput, setPasswordInput] = useState('');
 
   const [originalFileName, setOriginalFileName] = useState('');
+  const [originalFileExtension, setOriginalFileExtension] = useState('html');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [cropModal, setCropModal] = useState({ isOpen: false, charId: '', imageUrl: '', crop: { x: 0, y: 0 }, zoom: 1 });
   const [croppedAreaPercent, setCroppedAreaPercent] = useState<any>(null);
@@ -579,7 +580,7 @@ const [isLocked, setIsLocked] = useState(true);
   const libraryDropdownRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedCropRef, setSelectedCropRef] = useState<Record<string, string>>({});
-  const [cropExcludedExpressions, setCropExcludedExpressions] = useState<Set<string>>(new Set());
+  const [cropSelectedExpressions, setCropSelectedExpressions] = useState<Set<string>>(new Set());
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1260,6 +1261,9 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       imageUrl: sourceChar.imageUrl,
       expressions: (sourceChar as any).expressions ? [...(sourceChar as any).expressions] : [],
       cropData: (sourceChar as any).cropData,
+      cropDataByUrl: (sourceChar as any).cropDataByUrl ? { ...(sourceChar as any).cropDataByUrl } : {},
+      rawCropStateByUrl: (sourceChar as any).rawCropStateByUrl ? { ...(sourceChar as any).rawCropStateByUrl } : {},
+      rawZoomStateByUrl: (sourceChar as any).rawZoomStateByUrl ? { ...(sourceChar as any).rawZoomStateByUrl } : {},
       rawCropState: (sourceChar as any).rawCropState,
       rawZoomState: (sourceChar as any).rawZoomState,
       excludedCropUrls: (sourceChar as any).excludedCropUrls ? [...(sourceChar as any).excludedCropUrls] : [],
@@ -1372,7 +1376,9 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     if (!file) return;
 
     const fileName = file.name.replace(/\.[^/.]+$/, "");
+    const fileExtension = (file.name.split('.').pop() || 'html').toLowerCase();
     setOriginalFileName(fileName);
+    setOriginalFileExtension(fileExtension);
     setPageTitle(''); // Reset custom title on new upload
 
     const {
@@ -1382,7 +1388,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       newTabs,
       newTabOrder,
       colorsFound
-    } = await parseLogFile(file);
+    } = fileExtension === 'json' ? await parseCcfoliaJsonFile(file) : await parseLogFile(file);
 
     setLogs(trimmedLogs);
     setCharSettings(newChars);
@@ -1589,7 +1595,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     if (pageTitle) {
       baseName = pageTitle;
     } else if (originalFileName) {
-      baseName = originalFileName.replace(/\.html$/, '');
+      baseName = originalFileName.replace(/\.(html?|json)$/i, '');
     }
     
     a.download = `${baseName}.json`;
@@ -2740,7 +2746,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                           "text-[11px] font-bold truncate leading-none mt-0.5 transition-colors",
                           originalFileName ? "text-white/90" : "text-white/60"
                         )}>
-                          {originalFileName ? `${originalFileName}.html` : 'HTML 로그 파일 선택'}
+                          {originalFileName ? `${originalFileName}.${originalFileExtension}` : 'HTML / JSON 로그 파일 선택'}
                         </p>
                       </div>
                     </div>
@@ -2751,6 +2757,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                           e.stopPropagation();
                           setLogs([]);
                           setOriginalFileName('');
+                          setOriginalFileExtension('html');
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="p-1 hover:bg-white/10 rounded-lg transition-colors shrink-0 flex items-center justify-center w-6 h-6 z-10 relative"
@@ -2762,7 +2769,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                       <div className="w-6 h-6 shrink-0" />
                     )}
                   </label>
-                  <input type="file" id="main-log-upload" ref={fileInputRef} onChange={handleLogUpload} accept=".html" className="hidden" />
+                  <input type="file" id="main-log-upload" ref={fileInputRef} onChange={handleLogUpload} accept=".html,.htm,.json,application/json,text/html" className="hidden" />
                 </Section>
 
                 <Section>
@@ -3365,15 +3372,19 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                                 const firstExprUrl = (char as any).expressions?.[0]?.url || char.imageUrl;
                                 const refUrl = selectedCropRef[char.id] || firstExprUrl || '';
                                 
+                                const expressionUrls = ((char as any).expressions || []).map((e: any) => e.url);
                                 const excludedArray = (char as any).excludedCropUrls || [];
-                                setCropExcludedExpressions(new Set(excludedArray));
+                                setCropSelectedExpressions(new Set(expressionUrls.filter((url: string) => !excludedArray.includes(url))));
+                                const perImageCrop = (char as any).rawCropStateByUrl?.[refUrl];
+                                const perImageZoom = (char as any).rawZoomStateByUrl?.[refUrl];
+                                setCroppedAreaPercent((char as any).cropDataByUrl?.[refUrl] || (char as any).cropData || null);
 
                                 setCropModal({
                                   isOpen: true,
                                   charId: char.id,
                                   imageUrl: refUrl,
-                                  crop: (char as any).rawCropState || { x: 0, y: 0 },
-                                  zoom: (char as any).rawZoomState || 1
+                                  crop: perImageCrop || (char as any).rawCropState || { x: 0, y: 0 },
+                                  zoom: perImageZoom || (char as any).rawZoomState || 1
                                 });
                               }}
                               className="px-1.5 py-0.5 bg-[#499bc8]/20 hover:bg-[#499bc8]/40 text-[#499bc8] hover:text-white border border-[#499bc8]/30 rounded text-[8px] font-bold transition-colors flex items-center justify-center gap-0.5 min-w-[46px] leading-tight shrink-0"
@@ -5108,7 +5119,7 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       </div>
       
       <div className="px-4 pb-3 text-xs text-stone-400 leading-relaxed">
-        마우스로 끌어 이동하고 휠을 굴려 크기를 조절하세요.<br/>모든 표정에 같은 1:1 영역이 일괄 적용됩니다.
+        마우스로 기준 이미지의 영역을 조절한 뒤, 아래에서 같은 크롭을 적용할 표정들을 선택하세요. 선택한 이미지 묶음마다 서로 다른 영역을 저장할 수 있습니다.
       </div>
 
       {/* 진짜 크롭 화면 영역 */}
@@ -5132,25 +5143,25 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
       <div className="bg-zinc-900 border-t border-white/10">
         <div className="p-3">
           <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[10px] font-bold text-white/50">크롭 적용할 표정 선택</span>
+            <span className="text-[10px] font-bold text-white/50">같은 크롭을 적용할 표정 선택</span>
             
             {/* 💡 새로 추가된 전체 선택/해제 버튼 */}
             <div className="flex gap-2 items-center">
               <button 
-                onClick={() => setCropExcludedExpressions(new Set())}
-                className="text-[9px] font-bold text-[#499bc8] hover:text-white transition-colors"
-              >
-                모두 포함
-              </button>
-              <span className="text-white/20 text-[9px]">|</span>
-              <button 
                 onClick={() => {
                   const allUrls = (charSettings[cropModal.charId] as any)?.expressions?.map((e: any) => e.url) || [];
-                  setCropExcludedExpressions(new Set(allUrls));
+                  setCropSelectedExpressions(new Set(allUrls));
                 }}
                 className="text-[9px] font-bold text-[#499bc8] hover:text-white transition-colors"
               >
-                모두 제외
+                모두 선택
+              </button>
+              <span className="text-white/20 text-[9px]">|</span>
+              <button 
+                onClick={() => setCropSelectedExpressions(new Set())}
+                className="text-[9px] font-bold text-[#499bc8] hover:text-white transition-colors"
+              >
+                모두 해제
               </button>
             </div>
             
@@ -5158,13 +5169,20 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
           
           <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 px-1">
             {(charSettings[cropModal.charId] as any)?.expressions?.map((expr: any, idx: number) => {
-              const isExcluded = cropExcludedExpressions.has(expr.url);
+              const isSelected = cropSelectedExpressions.has(expr.url);
               return (
                 <div 
                   key={idx} 
                   className="relative shrink-0 cursor-pointer"
                   onClick={() => {
-                    setCropExcludedExpressions(prev => {
+                    setCropModal(prev => ({
+                      ...prev,
+                      imageUrl: expr.url,
+                      crop: (charSettings[cropModal.charId] as any)?.rawCropStateByUrl?.[expr.url] || (!(charSettings[cropModal.charId] as any)?.cropDataByUrl ? (charSettings[cropModal.charId] as any)?.rawCropState : null) || { x: 0, y: 0 },
+                      zoom: (charSettings[cropModal.charId] as any)?.rawZoomStateByUrl?.[expr.url] || (!(charSettings[cropModal.charId] as any)?.cropDataByUrl ? (charSettings[cropModal.charId] as any)?.rawZoomState : null) || 1
+                    }));
+                    setCroppedAreaPercent((charSettings[cropModal.charId] as any)?.cropDataByUrl?.[expr.url] || (!(charSettings[cropModal.charId] as any)?.cropDataByUrl ? (charSettings[cropModal.charId] as any)?.cropData || null : null));
+                    setCropSelectedExpressions(prev => {
                       const next = new Set(prev);
                       if (next.has(expr.url)) next.delete(expr.url);
                       else next.add(expr.url);
@@ -5174,16 +5192,16 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                 >
                   <div className={cn(
                     "w-12 h-12 rounded-lg overflow-hidden bg-black/40 border-2 transition-all relative",
-                    isExcluded ? "border-transparent opacity-40" : "border-[#499bc8] ring-1 ring-[#499bc8]/30"
+                    isSelected ? "border-[#499bc8] ring-1 ring-[#499bc8]/30" : "border-transparent opacity-40"
                   )}>
                     <img src={expr.url} alt="" className="w-full h-full object-cover object-top pointer-events-none" referrerPolicy="no-referrer"/>
-                    {isExcluded && (
+                    {!isSelected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                         <X className="w-5 h-5 text-white/70 stroke-[3px]" />
                       </div>
                     )}
                   </div>
-                  <div className={cn("text-[9px] text-center font-medium mt-1 truncate w-12", isExcluded ? "text-white/30 line-through" : "text-white/80")}>
+                  <div className={cn("text-[9px] text-center font-medium mt-1 truncate w-12", isSelected ? "text-white/80" : "text-white/30 line-through")}>
                     {expr.label}
                   </div>
                 </div>
@@ -5196,15 +5214,33 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         <div className="p-3 pt-0">
           <button
             onClick={() => {
-              if (croppedAreaPercent) {
+              if (croppedAreaPercent && cropSelectedExpressions.size > 0) {
                 const nextSettings = { ...charSettings };
+                const currentChar = nextSettings[cropModal.charId] as any;
+                const nextCropDataByUrl = { ...(currentChar.cropDataByUrl || {}) };
+                const nextRawCropStateByUrl = { ...(currentChar.rawCropStateByUrl || {}) };
+                const nextRawZoomStateByUrl = { ...(currentChar.rawZoomStateByUrl || {}) };
+                // 기존 캐릭터 전체 크롭 설정이 있던 프로젝트는 표정별 설정으로 옮겨,
+                // 이번에 선택하지 않은 이미지의 기존 표시도 유지합니다.
+                if (!currentChar.cropDataByUrl && currentChar.cropData) {
+                  const legacyExcluded = currentChar.excludedCropUrls || [];
+                  ((currentChar.expressions || []) as any[]).forEach((expr: any) => {
+                    if (!legacyExcluded.includes(expr.url)) nextCropDataByUrl[expr.url] = currentChar.cropData;
+                    if (currentChar.rawCropState) nextRawCropStateByUrl[expr.url] = currentChar.rawCropState;
+                    if (currentChar.rawZoomState) nextRawZoomStateByUrl[expr.url] = currentChar.rawZoomState;
+                  });
+                }
+                cropSelectedExpressions.forEach((url) => {
+                  nextCropDataByUrl[url] = croppedAreaPercent;
+                  nextRawCropStateByUrl[url] = cropModal.crop;
+                  nextRawZoomStateByUrl[url] = cropModal.zoom;
+                });
                 nextSettings[cropModal.charId] = {
-                  ...nextSettings[cropModal.charId],
-                  cropData: croppedAreaPercent, 
-                  rawCropState: cropModal.crop,
-                  rawZoomState: cropModal.zoom,
-                  // 💡 저장할 때 제외된 표정 목록도 캐릭터 데이터에 함께 저장합니다!
-                  excludedCropUrls: Array.from(cropExcludedExpressions)
+                  ...currentChar,
+                  cropDataByUrl: nextCropDataByUrl,
+                  rawCropStateByUrl: nextRawCropStateByUrl,
+                  rawZoomStateByUrl: nextRawZoomStateByUrl,
+                  excludedCropUrls: []
                 } as any;
                 
                 setCharSettings(nextSettings);

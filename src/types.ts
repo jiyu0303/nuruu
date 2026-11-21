@@ -38,7 +38,7 @@ export interface CharSetting {
   expressions?: { label: string; url: string }[];
   imageName?: string;
   visible: boolean;
-    expressions?: { label: string; url: string }[]; 
+  cropDataByUrl?: Record<string, { x: number; y: number; width: number; height: number }>;
 }
 
 export interface TabSetting {

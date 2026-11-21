@@ -234,3 +234,91 @@ export const parseLogFile = async (file: File) => {
     colorsFound: Array.from(colorsFound)
   };
 };
+// 코코포리아 원본 JSON 파서. HTML 파서와 동일한 반환 구조를 사용해
+// 기존 로그 편집 UI에서 탭/화자/표정 목록을 그대로 활용합니다.
+export const parseCcfoliaJsonFile = async (file: File) => {
+  const raw = JSON.parse(await file.text());
+  if (!raw || !Array.isArray(raw.messages) || !raw.images || typeof raw.images !== 'object') {
+    throw new Error('코코포리아 원본 JSON 형식이 아닙니다. messages와 images 항목을 확인해 주세요.');
+  }
+
+  const newLogs: LogEntry[] = [];
+  const newChars: Record<string, CharSetting> = {};
+  const newCharOrder: string[] = [];
+  const newTabs: Record<string, TabSetting> = {};
+  const newTabOrder: string[] = [];
+  const colorsFound = new Set<string>();
+  const charIds = new Map<string, string>();
+  const tabIds = new Map<string, string>();
+  const expressionSeen: Record<string, Set<string>> = {};
+  const imageData: Record<string, string> = raw.images;
+
+  const inferFormat = (name: string): TabFormat => {
+    const lower = name.toLowerCase();
+    if (lower.includes('other') || lower.includes('잡담')) return 'other';
+    if (lower.includes('info') || lower.includes('정보')) return 'info';
+    if (lower.includes('secret') || lower.includes('비밀')) return 'secret';
+    return 'main';
+  };
+  const escapeHtml = (value: string) => value
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+
+  raw.messages.forEach((message: any, index: number) => {
+    const rawChannelId = String(message.channel || 'main');
+    const tabName = String(message.channelName || (rawChannelId === 'main' ? 'main' : rawChannelId));
+    let tabId = tabIds.get(rawChannelId);
+    if (!tabId) {
+      tabId = `ccfolia_tab_${newTabOrder.length + 1}`;
+      tabIds.set(rawChannelId, tabId);
+      newTabs[tabId] = { id: tabId, name: tabName, format: inferFormat(tabName), visible: true, color: '#ffd400' };
+      newTabOrder.push(tabId);
+    }
+
+    const name = String(message.name || 'system');
+    const color = typeof message.color === 'string' ? message.color : '';
+    if (color && color.toLowerCase() !== '#000000' && color.toLowerCase() !== '#000') colorsFound.add(color.toUpperCase());
+    const charKey = `${name}\u0000${color}`;
+    let charId = charIds.get(charKey);
+    if (!charId) {
+      charId = `ccfolia_char_${newCharOrder.length + 1}`;
+      charIds.set(charKey, charId);
+      newCharOrder.push(charId);
+      newChars[charId] = { id: charId, name, color, imageUrl: '', expressions: [], visible: true };
+      expressionSeen[charId] = new Set<string>();
+    }
+
+    const imageKey = message.iconImage ? String(message.iconImage) : '';
+    const iconUrl = imageKey && typeof imageData[imageKey] === 'string' ? imageData[imageKey] : '';
+    if (iconUrl && !expressionSeen[charId].has(iconUrl)) {
+      expressionSeen[charId].add(iconUrl);
+      const expressions = newChars[charId].expressions || [];
+      expressions.push({ label: `@JSON ${expressions.length + 1}`, url: iconUrl });
+      newChars[charId].expressions = expressions;
+      if (!newChars[charId].imageUrl) newChars[charId].imageUrl = iconUrl;
+    }
+
+    const text = String(message.text ?? '');
+    const isCommand = message.type === 'system' || message.type === 'dice' || message.type === 'command';
+    newLogs.push({
+      id: `ccfolia_log_${index + 1}`,
+      color,
+      tabId,
+      tab: tabName,
+      charId,
+      name,
+      content: escapeHtml(text).replace(/\r?\n/g, '<br>'),
+      isCommand,
+      iconUrl: iconUrl || undefined
+    });
+  });
+
+  return {
+    trimmedLogs: newLogs,
+    newChars,
+    newCharOrder,
+    newTabs,
+    newTabOrder,
+    colorsFound: Array.from(colorsFound)
+  };
+};

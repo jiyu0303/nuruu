@@ -671,10 +671,23 @@ export const generateFinalHtmlStr = (
     const stableId = log.id.startsWith('merged:') ? log.id.split(',').pop()! : log.id;
     const currentBlocks = (insertedBlocks[stableId] || []).filter(b => b.type === 'split' || (b.type === 'image' && isValidUrl(b.url)));
     
-    if (log.isContinuation && chunks.length > 0 && !log.isHiddenContent) {
-      chunks[chunks.length - 1].logs.push(log);
-      chunks[chunks.length - 1].stableId = stableId;
-      chunks[chunks.length - 1].blocksAfter = currentBlocks;
+    const previousChunk = chunks.length > 0 ? chunks[chunks.length - 1] : null;
+    const previousChunkLog = previousChunk?.logs[previousChunk.logs.length - 1];
+    const previousExplicitIconLog = previousChunk?.logs.slice().reverse().find(
+      (item: any) => item.charId === log.charId && item.iconUrl
+    );
+    // 같은 발화자의 연속 대사라도 표정 이미지가 바뀌었다면 별도 로그 블록으로 출력합니다.
+    // 그렇지 않으면 여러 표정 대사가 하나의 블록으로 합쳐져 첫 번째 이미지만 남습니다.
+    const hasDifferentExpressionImage = !!(
+      log.iconUrl &&
+      previousExplicitIconLog?.iconUrl &&
+      log.iconUrl !== previousExplicitIconLog.iconUrl
+    );
+
+    if (log.isContinuation && previousChunk && !log.isHiddenContent && !hasDifferentExpressionImage) {
+      previousChunk.logs.push(log);
+      previousChunk.stableId = stableId;
+      previousChunk.blocksAfter = currentBlocks;
     } else {
       chunks.push({ logs: [log], stableId, blocksAfter: currentBlocks, isHidden: log.isHiddenContent || false });
     }
@@ -1175,9 +1188,10 @@ export const generateFinalHtmlStr = (
     let customImgStyle = '';
       if (img) {
         const charData = charSettings[log.charId];
-        const crop = charData?.cropData;
+        const hasPerImageCropMap = !!charData?.cropDataByUrl;
+        const crop = hasPerImageCropMap ? charData.cropDataByUrl[img] : charData?.cropData;
         const excluded = charData?.excludedCropUrls || [];
-        const isExcluded = excluded.includes(img);
+        const isExcluded = !hasPerImageCropMap && excluded.includes(img);
         
         if (crop && !isExcluded) {
           // 크롭 좌표 수학 계산 (이제 두 번 곱해져서 튕겨 나가는 일이 없습니다!)
