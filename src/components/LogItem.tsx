@@ -51,7 +51,10 @@ export const LogItem = React.memo(({
   editingLogId = null,
   setEditingLogId,
   insertSystemLogBlock, // 아까 추가한 것
-  moveLog
+  blockSelectionMode = false,
+  isBlockSelected = false,
+  onBlockSelect,
+  onAvatarClick
 }: any) => {
   const { 
     theme, disableOtherColor, fontSize, textFontSize,
@@ -903,8 +906,11 @@ export const LogItem = React.memo(({
 
   return (
     <div 
+      style={isBlockSelected ? { outline: '1px solid #4799c7', outlineOffset: '-1px', borderRadius: 0 } : undefined}
       className={cn(
         "log-item-wrapper group/item relative min-h-[30px] flex flex-col justify-center",
+        blockSelectionMode && "cursor-pointer",
+        isBlockSelected && "bg-[#4799c7]/10",
         isEditing && "is-editing",
         isHighlighted && searchQuery && (
           isCurrentMatch 
@@ -914,6 +920,12 @@ export const LogItem = React.memo(({
         dragOverPart === 'top' && "is-drag-over-top",
         dragOverPart === 'bottom' && "is-drag-over-bottom"
       )}
+      onClick={(e) => {
+        if (!blockSelectionMode || !onBlockSelect) return;
+        const target = e.target as HTMLElement;
+        if (target.closest('button, input, select, textarea, a')) return;
+        onBlockSelect(e.shiftKey);
+      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -935,33 +947,7 @@ export const LogItem = React.memo(({
             #{originalLogIndex + 1}
           </div>
           
-          {/* ▼ 여기서부터 위/아래 이동 버튼 추가 ▼ */}
-          <button 
-            onClick={() => moveLog(log.id, 'up')} 
-            className={cn(
-              "p-1 rounded border backdrop-blur-sm transition-colors",
-              theme === 'dark' 
-                ? "bg-stone-800/80 text-white/60 hover:text-white border-white/10" 
-                : "bg-white/90 text-stone-600 hover:text-stone-900 border-stone-200"
-            )}
-            title="위로 이동"
-          >
-            <ArrowUp className="w-3 h-3" />
-          </button>
-          
-          <button 
-            onClick={() => moveLog(log.id, 'down')} 
-            className={cn(
-              "p-1 rounded border backdrop-blur-sm transition-colors",
-              theme === 'dark' 
-                ? "bg-stone-800/80 text-white/60 hover:text-white border-white/10" 
-                : "bg-white/90 text-stone-600 hover:text-stone-900 border-stone-200"
-            )}
-            title="아래로 이동"
-          >
-            <ArrowDown className="w-3 h-3" />
-          </button>
-          {/* ▲ 여기까지 추가 ▲ */}
+
 
           <button 
             onClick={() => { setEditingLogId(log.id); setEditContent(log.content.replace(/<br\s*\/?>/gi, '\n')); setEditCharId(log.charId); }} 
@@ -1078,25 +1064,7 @@ export const LogItem = React.memo(({
                         서식 되돌리기
                       </button>
                     )}
-                    {charSettings[editCharId]?.expressions && charSettings[editCharId].expressions.length > 0 && !editAsSystem && (
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn("text-[10px] whitespace-nowrap font-medium shrink-0", theme === 'dark' ? "text-white/40" : "text-stone-500")}>표정:</span>
-                        <SearchableSelect
-                          value={editIconUrl}
-                          onChange={(val) => setEditIconUrl(val)}
-                          options={[
-                            { label: "선택하세요", value: "" },
-                            ...charSettings[editCharId].expressions.map((e: any) => ({
-                              label: e.label,
-                              value: e.url
-                            }))
-                          ]}
-                          placeholder="표정 변경"
-                          className="w-[120px] text-xs"
-                          theme={theme}
-                        />
-                      </div>
-                    )}
+                    
                     
                   </div>
                   <div className="flex justify-end gap-1 shrink-0">
@@ -1239,15 +1207,14 @@ export const LogItem = React.memo(({
                         {log.isContinuation || hideThisAvatar ? (
                           <div style={{ width: `${avatarSize}px`, flexShrink: 0 }} />
                         ) : (
-                          <LogAvatar 
-  img={img} 
-  theme={theme} 
-  avatarSize={avatarSize} 
-  hideEmptyAvatars={hideEmptyAvatars} 
-  cropData={charSettings[log.charId]?.cropData}
-  cropDataByUrl={(charSettings[log.charId] as any)?.cropDataByUrl}
-  excludedCropUrls={charSettings[log.charId]?.excludedCropUrls} 
-/>
+                          <div onClick={(e) => { e.stopPropagation(); onAvatarClick?.(log.id, log.charId); }} className="cursor-pointer active:scale-95 transition-transform">
+                            <LogAvatar 
+                              img={img} theme={theme} avatarSize={avatarSize} hideEmptyAvatars={hideEmptyAvatars}
+                              cropData={charSettings[log.charId]?.cropData}
+                              cropDataByUrl={(charSettings[log.charId] as any)?.cropDataByUrl}
+                              excludedCropUrls={charSettings[log.charId]?.excludedCropUrls}
+                            />
+                          </div>
                         )}
                         <div style={{ flexGrow: 1, lineHeight: lineHeight, letterSpacing: letterSpacing === 0 ? 'normal' : `${scaledLetterSpacing}px` }}>
                           {!log.isContinuation && (
@@ -1350,15 +1317,14 @@ export const LogItem = React.memo(({
                   {log.isContinuation || hideThisAvatar ? (
                     <div style={{ width: `${avatarSize}px`, flexShrink: 0 }} />
                   ) : (
-                    <LogAvatar 
-  img={img} 
-  theme={theme} 
-  avatarSize={avatarSize} 
-  hideEmptyAvatars={hideEmptyAvatars} 
-  cropData={charSettings[log.charId]?.cropData}
-  cropDataByUrl={(charSettings[log.charId] as any)?.cropDataByUrl}
-  excludedCropUrls={charSettings[log.charId]?.excludedCropUrls} 
-/>
+                    <div onClick={(e) => { e.stopPropagation(); onAvatarClick?.(log.id, log.charId); }} className="cursor-pointer active:scale-95 transition-transform">
+                      <LogAvatar 
+                        img={img} theme={theme} avatarSize={avatarSize} hideEmptyAvatars={hideEmptyAvatars}
+                        cropData={charSettings[log.charId]?.cropData}
+                        cropDataByUrl={(charSettings[log.charId] as any)?.cropDataByUrl}
+                        excludedCropUrls={charSettings[log.charId]?.excludedCropUrls}
+                      />
+                    </div>
                   )}
                   <div style={{ flexGrow: 1, lineHeight: lineHeight, letterSpacing: letterSpacing === 0 ? 'normal' : `${scaledLetterSpacing}px` }}>
                     {!log.isContinuation && (

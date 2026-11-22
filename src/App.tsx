@@ -646,6 +646,13 @@ const [isLocked, setIsLocked] = useState(true);
   const [showLogDivider, setShowLogDivider] = useLocalStorage<boolean>('ccfolia_showLogDivider', false, undefined, undefined, rememberSettings);
   const [imageInputIdx, setImageInputIdx] = useState<string | null>(null);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [blockSelectionMode, setBlockSelectionMode] = useState(false);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+  const [selectionAnchorIndex, setSelectionAnchorIndex] = useState<number | null>(null);
+  const [bulkMoveMode, setBulkMoveMode] = useState(false);
+  const [avatarPopup, setAvatarPopup] = useState<{ logId: string; charId: string } | null>(null);
+  const [editingPopupExpression, setEditingPopupExpression] = useState<{ charId: string; index: number; value: string } | null>(null);
+
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [listOffset, setListOffset] = useState(0);
@@ -2132,6 +2139,94 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     saveToHistory({ charSettings: nextCharSettings, charOrder: nextCharOrder });
   };
 
+
+  const getUnderlyingLogIds = (id: string) =>
+    id.startsWith('merged:') ? id.replace('merged:', '').split(',') : [id];
+
+  const handleBlockSelect = (blockId: string, blockIndex: number, shiftKey = false) => {
+    const ids = getUnderlyingLogIds(blockId);
+    if (bulkMoveMode) {
+      const selectedRawIds = new Set(selectedBlockIds.flatMap(getUnderlyingLogIds));
+      if (ids.some(id => selectedRawIds.has(id))) return;
+      const targetRawId = ids[0];
+      const targetIndex = logs.findIndex(l => l.id === targetRawId);
+      if (targetIndex < 0) return;
+      const moving = logs.filter(l => selectedRawIds.has(l.id));
+      const remaining = logs.filter(l => !selectedRawIds.has(l.id));
+      const adjustedTarget = remaining.findIndex(l => l.id === targetRawId);
+      if (adjustedTarget < 0) return;
+      const next = [...remaining];
+      next.splice(adjustedTarget, 0, ...moving);
+      setLogs(next);
+      saveToHistory({ logs: next });
+      setBulkMoveMode(false);
+      setBlockSelectionMode(false);
+      setSelectedBlockIds([]);
+      setSelectionAnchorIndex(null);
+      return;
+    }
+    if (shiftKey && selectionAnchorIndex !== null) {
+      const start = Math.min(selectionAnchorIndex, blockIndex);
+      const end = Math.max(selectionAnchorIndex, blockIndex);
+      const rangeIds = mergedLogs.slice(start, end + 1).map((item: any) => item.id);
+      setSelectedBlockIds(Array.from(new Set(rangeIds)));
+      return;
+    }
+    setSelectionAnchorIndex(blockIndex);
+    setSelectedBlockIds(prev => prev.includes(blockId) ? prev.filter(x => x !== blockId) : [...prev, blockId]);
+  };
+
+  const applyExpressionToSelection = (imageUrl: string) => {
+    if (!avatarPopup) return;
+    const targetIds = selectedBlockIds.length
+      ? selectedBlockIds.flatMap(getUnderlyingLogIds)
+      : getUnderlyingLogIds(avatarPopup.logId);
+    const targetSet = new Set(targetIds);
+    const next = logs.map(log => targetSet.has(log.id) ? { ...log, iconUrl: imageUrl } : log);
+    setLogs(next);
+    saveToHistory({ logs: next });
+    setAvatarPopup(null);
+    setEditingPopupExpression(null);
+  };
+
+  const savePopupExpressionName = () => {
+    if (!editingPopupExpression) return;
+    const { charId, index, value } = editingPopupExpression;
+    const currentChar = charSettings[charId];
+    if (!currentChar?.expressions?.[index]) {
+      setEditingPopupExpression(null);
+      return;
+    }
+    const nextExpressions = currentChar.expressions.map((expr, i) =>
+      i === index ? { ...expr, label: value.trim() || expr.label } : expr
+    );
+    const nextSettings = {
+      ...charSettings,
+      [charId]: { ...currentChar, expressions: nextExpressions }
+    };
+    setCharSettings(nextSettings);
+    saveToHistory({ charSettings: nextSettings });
+    setEditingPopupExpression(null);
+  };
+
+  const applyBulkSpeaker = (charId: string) => {
+    const char = charSettings[charId];
+    if (!char || !selectedBlockIds.length) return;
+    const ids = new Set(selectedBlockIds.flatMap(getUnderlyingLogIds));
+    const next = logs.map(log => ids.has(log.id) ? { ...log, charId, name: char.name, color: char.color } : log);
+    setLogs(next);
+    saveToHistory({ logs: next });
+  };
+
+  const applyBulkTab = (tabId: string) => {
+    const tab = tabSettings[tabId];
+    if (!tab || !selectedBlockIds.length) return;
+    const ids = new Set(selectedBlockIds.flatMap(getUnderlyingLogIds));
+    const next = logs.map(log => ids.has(log.id) ? { ...log, tabId: tab.id, tab: tab.name } : log);
+    setLogs(next);
+    saveToHistory({ logs: next });
+  };
+
   const onChangeSpeaker = useCallback((logId: string, newCharId: string) => {
   const newChar = charSettings[newCharId];
   if (!newChar) return;
@@ -2379,27 +2474,6 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     setLogs(nextLogs);
     saveToHistory({ logs: nextLogs });
     setEditingLogId(newLogId);
-  }, [logs, saveToHistory]);
-
-  // ★ 추가 기능 2: 로그 위/아래 순서 이동 로직
-  const moveLog = useCallback((logId: string, direction: 'up' | 'down') => {
-    const index = logs.findIndex(l => l.id === logId);
-    if (index === -1) return;
-    
-    // 맨 위인데 위로 가려 하거나, 맨 아래인데 아래로 가려 하면 무시
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === logs.length - 1) return;
-
-    const nextLogs = [...logs];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    
-    // 두 로그의 자리를 맞바꿈(Swap)
-    const temp = nextLogs[index];
-    nextLogs[index] = nextLogs[newIndex];
-    nextLogs[newIndex] = temp;
-
-    setLogs(nextLogs);
-    saveToHistory({ logs: nextLogs });
   }, [logs, saveToHistory]);
 
   const copyToClipboard = (text: string) => {
@@ -4195,6 +4269,30 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
         "flex-1 flex-col bg-[#0f0f0f] relative overflow-hidden min-w-0",
         mobileTab === 'preview' ? 'flex' : 'hidden md:flex'
       )}>
+        {blockSelectionMode && createPortal(
+          <div className="fixed inset-0 z-[100000] pointer-events-none">
+            <div className="absolute left-0 md:left-[420px] right-0 top-[72px] flex justify-center items-start px-4">
+              <div className="pointer-events-auto flex w-full max-w-[800px] flex-wrap items-center justify-center gap-2 rounded-xl border border-[#4799c7]/50 bg-black/95 p-3 text-white shadow-2xl backdrop-blur-md">
+                <span className="px-1 text-[11px] font-bold text-white/80">선택 {selectedBlockIds.length}개</span>
+                <button onClick={() => setSelectedBlockIds(mergedLogs.map((x: any) => x.id))} className="rounded bg-white/10 px-2.5 py-2 text-[11px] hover:bg-white/20">전체 선택</button>
+                <button onClick={() => { setSelectedBlockIds([]); setSelectionAnchorIndex(null); }} className="rounded bg-white/10 px-2.5 py-2 text-[11px] hover:bg-white/20">선택 해제</button>
+                <select defaultValue="" onChange={e => { if (e.target.value) applyBulkSpeaker(e.target.value); e.currentTarget.value = ''; }} className="max-w-[130px] rounded bg-[#292929] px-2.5 py-2 text-[11px]">
+                  <option value="">발언자 변경</option>
+                  {Object.values(charSettings).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select defaultValue="" onChange={e => { if (e.target.value) applyBulkTab(e.target.value); e.currentTarget.value = ''; }} className="max-w-[130px] rounded bg-[#292929] px-2.5 py-2 text-[11px]">
+                  <option value="">탭 변경</option>
+                  {Object.values(tabSettings).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button onClick={() => setBulkMoveMode(v => !v)} disabled={!selectedBlockIds.length} className={`rounded px-3 py-2 text-[11px] font-bold disabled:opacity-40 ${bulkMoveMode ? 'bg-amber-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                  {bulkMoveMode ? '이동 중' : '선택 블록 이동'}
+                </button>
+                <button onClick={() => { setBlockSelectionMode(false); setSelectedBlockIds([]); setSelectionAnchorIndex(null); setBulkMoveMode(false); }} className="rounded bg-[#499bc8] px-3 py-2 text-[11px] font-bold hover:bg-[#367fa8]">닫기</button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
         <div className={cn(
           "h-16 border-b flex items-center justify-between px-4 xl:px-8 shrink-0 gap-4 min-w-0",
           "bg-[#1a1a1a] border-white/5"
@@ -4279,6 +4377,23 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                 )}
               </div>
             </div>
+            <button
+              onClick={() => {
+                setBlockSelectionMode(v => !v);
+                setSelectedBlockIds([]);
+                setSelectionAnchorIndex(null);
+                setBulkMoveMode(false);
+              }}
+              className={cn(
+                "shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold transition-colors",
+                blockSelectionMode
+                  ? "bg-[#499bc8] text-white"
+                  : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+              )}
+              title="블록수정모드"
+            >
+              {blockSelectionMode ? '블록수정 종료' : '블록수정모드'}
+            </button>
             
             <div className={cn("hidden xl:block h-4 w-px shrink-0", "bg-white/10")} />
             <p className={cn("hidden xl:block text-[11px] font-bold truncate", "text-white/30")}>
@@ -4545,6 +4660,68 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
           <div className="w-full min-w-0 min-h-full flex flex-col">
             {logs.length > 0 ? (
               <div className="relative group/preview">
+                {avatarPopup && (() => {
+                  const char = charSettings[avatarPopup.charId];
+                  const expressions = (char?.expressions || []).filter((x: any) => x?.url);
+                  const options = [
+                    ...(char?.imageUrl ? [{ label: '기본', url: char.imageUrl, isDefault: true }] : []),
+                    ...expressions.map((expr: any, index: number) => ({ ...expr, isDefault: false, expressionIndex: index }))
+                  ];
+                  return (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" onClick={() => { setAvatarPopup(null); setEditingPopupExpression(null); }}>
+                      <div className="w-full max-w-[560px] rounded-2xl border border-white/15 bg-[#202020] p-4 text-white shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div><div className="text-sm font-bold">{char?.name || '표정 선택'}</div><div className="text-[11px] text-white/50">{selectedBlockIds.length ? `선택한 ${selectedBlockIds.length}개 블록에 적용` : '이 블록의 표정 변경'} · 표정 이름 더블클릭으로 수정</div></div>
+                          <button onClick={() => { setAvatarPopup(null); setEditingPopupExpression(null); }} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs">닫기</button>
+                        </div>
+                        <div className="grid max-h-[65vh] grid-cols-3 gap-3 overflow-y-auto sm:grid-cols-4">
+                          {options.map((image: any, i: number) => {
+                            const crop = (char as any)?.cropDataByUrl?.[image.url] || (!(char as any)?.cropDataByUrl ? (char as any)?.cropData : null);
+                            const imageStyle: React.CSSProperties = crop ? {
+                              position: 'absolute', maxWidth: 'none', maxHeight: 'none',
+                              width: `${100 / crop.width * 100}%`, height: `${100 / crop.height * 100}%`,
+                              left: `-${crop.x / crop.width * 100}%`, top: `-${crop.y / crop.height * 100}%`
+                            } : { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' };
+                            const label = image.label || `표정 ${i + 1}`;
+                            const isEditing = !image.isDefault && editingPopupExpression?.charId === avatarPopup.charId && editingPopupExpression?.index === image.expressionIndex;
+                            return (
+                              <div key={`${image.url}-${i}`} className="group rounded-xl border border-white/10 bg-white/5 p-2 hover:border-[#4799c7] hover:bg-[#4799c7]/10">
+                                <button onClick={() => applyExpressionToSelection(image.url)} className="block w-full text-left" title="클릭해서 이 표정 적용">
+                                  <div className="relative mb-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-black/30">
+                                    <img src={image.url} alt="" style={imageStyle} referrerPolicy="no-referrer" />
+                                  </div>
+                                </button>
+                                {isEditing ? (
+                                  <input
+                                    autoFocus
+                                    value={editingPopupExpression?.value ?? label}
+                                    onChange={e => setEditingPopupExpression(prev => prev ? { ...prev, value: e.target.value } : prev)}
+                                    onBlur={savePopupExpressionName}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') { e.preventDefault(); savePopupExpressionName(); }
+                                    }}
+                                    onClick={e => e.stopPropagation()}
+                                    className="w-full rounded bg-black/50 px-1 py-1 text-center text-[11px] text-white outline-none ring-1 ring-[#4799c7]"
+                                  />
+                                ) : (
+                                  <div
+                                    onDoubleClick={e => {
+                                      if (image.isDefault) return;
+                                      e.preventDefault(); e.stopPropagation();
+                                      setEditingPopupExpression({ charId: avatarPopup.charId, index: image.expressionIndex, value: label });
+                                    }}
+                                    className="cursor-text truncate text-center text-[11px]"
+                                    title={image.isDefault ? label : '더블클릭해서 이름 수정'}
+                                  >{label}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div 
                   className="min-h-screen relative transition-colors"
                   style={{
@@ -4732,7 +4909,10 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
                               setEditingLogId={setEditingLogId}
                               isDraggingIllustration={isDraggingIllustration}
                               insertSystemLogBlock={insertSystemLogBlock}
-                              moveLog={moveLog}
+                              blockSelectionMode={blockSelectionMode}
+                              isBlockSelected={selectedBlockIds.includes(stableId)}
+                              onBlockSelect={(shiftKey: boolean) => handleBlockSelect(stableId, globalIdx, shiftKey)}
+                              onAvatarClick={(logId: string, charId: string) => setAvatarPopup({ logId, charId })}
                             />
                           </div>
                         );
