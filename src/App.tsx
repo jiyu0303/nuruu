@@ -1252,6 +1252,46 @@ const [collapseChat, setCollapseChat] = useLocalStorage<boolean>(
     saveToHistory({ charSettings: nextCharSettings, logs: nextLogs });
   };
 
+  const renameTab = (tabId: string, newName: string) => {
+    const trimmedName = newName.trim();
+
+    if (!trimmedName) {
+      setRenamingTab(null);
+      return;
+    }
+
+    const existingTab = tabSettings[tabId];
+    if (!existingTab) {
+      setRenamingTab(null);
+      return;
+    }
+
+    // 탭 설정의 이름 변경
+    const nextTabSettings = {
+      ...tabSettings,
+      [tabId]: {
+        ...existingTab,
+        name: trimmedName
+      }
+    };
+
+    // 해당 탭을 사용하는 로그의 탭 이름도 갱신
+    const nextLogs = logs.map(log =>
+      log.tabId === tabId
+        ? { ...log, tab: trimmedName }
+        : log
+    );
+
+    setTabSettings(nextTabSettings);
+    setLogs(nextLogs);
+    setRenamingTab(null);
+
+    saveToHistory({
+      tabSettings: nextTabSettings,
+      logs: nextLogs
+    });
+  };
+
   const copyCharacterData = (targetId: string, sourceId: string) => {
     const sourceChar = charSettings[sourceId];
     const targetChar = charSettings[targetId];
