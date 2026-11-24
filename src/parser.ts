@@ -305,7 +305,7 @@ export const parseCcfoliaJsonFile = async (file: File) => {
       : '';
     // 이미 본문에 포함된 경우 중복으로 붙이지 않습니다.
     const displayText = rollResult && !text.includes(rollResult)
-      ? `${text}${text.trim() ? '\\n' : ''}${rollResult}`
+      ? `${text}${text.trim() ? ' ' : ''}${rollResult}`
       : text;
     const isCommand = message.type === 'system'
       || message.type === 'dice'
