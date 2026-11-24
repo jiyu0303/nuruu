@@ -299,7 +299,18 @@ export const parseCcfoliaJsonFile = async (file: File) => {
     }
 
     const text = String(message.text ?? '');
-    const isCommand = message.type === 'system' || message.type === 'dice' || message.type === 'command';
+    // 코코포리아 JSON의 주사위 판정 결과는 message.extend.roll.result에 별도로 저장됩니다.
+    const rollResult = typeof message.extend?.roll?.result === 'string'
+      ? message.extend.roll.result
+      : '';
+    // 이미 본문에 포함된 경우 중복으로 붙이지 않습니다.
+    const displayText = rollResult && !text.includes(rollResult)
+      ? `${text}${text.trim() ? '\\n' : ''}${rollResult}`
+      : text;
+    const isCommand = message.type === 'system'
+      || message.type === 'dice'
+      || message.type === 'command'
+      || Boolean(rollResult);
     newLogs.push({
       id: `ccfolia_log_${index + 1}`,
       color,
@@ -307,7 +318,7 @@ export const parseCcfoliaJsonFile = async (file: File) => {
       tab: tabName,
       charId,
       name,
-      content: escapeHtml(text).replace(/\r?\n/g, '<br>'),
+      content: escapeHtml(displayText).replace(/\r?\n/g, '<br>'),
       isCommand,
       iconUrl: iconUrl || undefined
     });
